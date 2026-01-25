@@ -55,5 +55,6 @@ pub mod d2d {
         use windows::Win32::Graphics::Direct2D::Common::*;
 
         pub type ColorF = D2D1_COLOR_F;
+        pub type RectF = D2D_RECT_F;
     }
 }

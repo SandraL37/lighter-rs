@@ -12,7 +12,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let window = Window::new(&app, WindowStyle::default())?;
     let window_ctx = renderer.create_window_context(window.hwnd())?;
 
-    let width = 600.0;
+    let width = 800.0;
     let height = 600.0;
 
     let surface = renderer.create_surface(
@@ -36,19 +36,25 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         for i in 0..count {
             let i = i as f32;
 
-            ctx.draw_line(
-                Point::new(0.0, i * hstep),
-                Point::new((i + 1.0) * wstep, height),
-                Color::rgba(0.0, 1.0, 1.0, 1.0),
-                2.0,
-            )?;
-            ctx.draw_line(
-                Point::new(i * wstep, 0.0),
-                Point::new(width, (i + 1.0) * hstep),
-                Color::rgba(0.0, 0.0, 1.0, 1.0),
-                2.0,
-            )?;
+            ctx.submit(&Command::DrawLine(Line {
+                start: Point::new(0.0, i * hstep),
+                end: Point::new((i + 1.0) * wstep, height),
+                color: Color::rgba(0.0, 1.0, 1.0, 1.0),
+                stroke_width: 2.0,
+            }))?;
+
+            ctx.submit(&Command::DrawLine(Line {
+                start: Point::new(i * wstep, 0.0),
+                end: Point::new(width, (i + 1.0) * hstep),
+                color: Color::rgba(0.0, 0.0, 1.0, 1.0),
+                stroke_width: 2.0,
+            }))?;
         }
+
+        ctx.submit(&Command::DrawFilledRectangle(FilledRectangle {
+            rect: Rect::pp(Point::new(10.0, 10.0), Point::new(100.0, 100.0)),
+            color: Color::rgba(1.0, 0.0, 0.0, 1.0),
+        }))?;
     }
 
     renderer.commit()?;

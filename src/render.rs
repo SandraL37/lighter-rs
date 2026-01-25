@@ -270,7 +270,7 @@ impl RenderSurface {
 
         let raw_rect;
         let rect_ptr = if let Some(rect) = update_rect {
-            raw_rect = rect.raw();
+            raw_rect = rect.win32();
             Some(&raw_rect as *const _)
         } else {
             None
@@ -411,17 +411,11 @@ impl DrawContext {
         }
     }
 
-    pub fn draw_line(&self, start: Point, end: Point, color: Color, width: f32) -> Result<()> {
-        unsafe {
-            let brush = self
-                .device_context
-                .CreateSolidColorBrush(&color.raw(), None)?;
-
-            self.device_context
-                .DrawLine(start.into(), end.into(), &brush, width, None);
+    pub fn submit(&self, command: &Command) -> Result<()> {
+        match command {
+            Command::DrawLine(line) => line.draw(self.context()),
+            Command::DrawFilledRectangle(rect) => rect.draw(self.context()),
         }
-
-        Ok(())
     }
 
     pub fn end(mut self) -> Result<()> {
@@ -442,5 +436,52 @@ impl DrawContext {
 impl Drop for DrawContext {
     fn drop(&mut self) {
         let _ = self.finish();
+    }
+}
+
+pub enum Command {
+    DrawLine(Line),
+    DrawFilledRectangle(FilledRectangle),
+}
+
+pub struct Line {
+    pub start: Point,
+    pub end: Point,
+    pub color: Color,
+    pub stroke_width: f32,
+}
+
+impl Line {
+    fn draw(&self, context: &d2d::DeviceContext) -> Result<()> {
+        unsafe {
+            let brush = context.CreateSolidColorBrush(&self.color.d2d(), None)?;
+
+            context.DrawLine(
+                self.start.into(),
+                self.end.into(),
+                &brush,
+                self.stroke_width,
+                None,
+            );
+        }
+
+        Ok(())
+    }
+}
+
+pub struct FilledRectangle {
+    pub rect: Rect,
+    pub color: Color,
+}
+
+impl FilledRectangle {
+    fn draw(&self, context: &d2d::DeviceContext) -> Result<()> {
+        unsafe {
+            let brush = context.CreateSolidColorBrush(&self.color.d2d(), None)?;
+
+            context.FillRectangle(&self.rect.d2d(), &brush);
+        }
+
+        Ok(())
     }
 }

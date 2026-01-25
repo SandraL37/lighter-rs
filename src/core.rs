@@ -51,7 +51,7 @@ pub struct Rect {
 }
 
 impl Rect {
-    pub fn new(x: f32, y: f32, width: f32, height: f32) -> Self {
+    pub fn xywh(x: f32, y: f32, width: f32, height: f32) -> Self {
         Rect {
             left: x,
             top: y,
@@ -60,12 +60,39 @@ impl Rect {
         }
     }
 
-    pub fn raw(&self) -> foundation::Rect {
+    pub fn pp(start: Point, end: Point) -> Self {
+        Rect {
+            left: start.x,
+            top: start.y,
+            right: end.x,
+            bottom: end.y,
+        }
+    }
+
+    pub fn ps(start: Point, size: Size) -> Self {
+        Rect {
+            left: start.x,
+            top: start.y,
+            right: start.x + size.width,
+            bottom: start.y + size.height,
+        }
+    }
+
+    pub fn win32(&self) -> foundation::Rect {
         foundation::Rect {
             left: self.left as i32,
             top: self.top as i32,
             right: self.right as i32,
             bottom: self.bottom as i32,
+        }
+    }
+
+    pub fn d2d(&self) -> d2d::common::RectF {
+        d2d::common::RectF {
+            left: self.left,
+            top: self.top,
+            right: self.right,
+            bottom: self.bottom,
         }
     }
 }
@@ -94,7 +121,7 @@ impl Color {
         Color { r, g, b, a }
     }
 
-    pub fn raw(&self) -> d2d::common::ColorF {
+    pub fn d2d(&self) -> d2d::common::ColorF {
         d2d::common::ColorF {
             r: self.r,
             g: self.g,
