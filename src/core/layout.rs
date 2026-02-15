@@ -1,84 +1,124 @@
-use crate::core::layout::engine::{EngineCache, EngineLayout, EngineStyle};
+mod engine;
 
-pub mod engine;
+pub use engine::{ComputedLayout, LayoutCache, LayoutStyle, UnroundedLayout, compute_layout};
 
 #[derive(Debug, Default, Clone)]
 pub struct NodeLayout {
-    pub style: EngineStyle,
-    pub unrounded: EngineLayout,
-    pub computed: EngineLayout,
-    pub cache: EngineCache,
+    pub style: LayoutStyle,
+    pub unrounded: UnroundedLayout,
+    pub computed: ComputedLayout,
+    pub cache: LayoutCache,
 }
 
 impl NodeLayout {
-    pub fn new(style: impl Into<EngineStyle>) -> Self {
+    pub fn new(style: impl Into<LayoutStyle>) -> Self {
         Self {
             style: style.into(),
-            unrounded: EngineLayout::default(),
-            computed: EngineLayout::default(),
-            cache: EngineCache::default(),
+            unrounded: ComputedLayout::default(),
+            computed: ComputedLayout::default(),
+            cache: LayoutCache::default(),
         }
     }
 }
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, PartialEq)]
 pub struct Size<T> {
     pub width: T,
     pub height: T,
 }
 
-impl<T: Clone> Size<T> {
+impl<T: Copy> Size<T> {
     pub const fn wh(width: T, height: T) -> Self {
         Self { width, height }
     }
 
     pub fn uniform(value: T) -> Self {
         Self {
-            width: value.clone(),
+            width: value,
             height: value,
         }
     }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq)]
-pub struct Rect<T> {
+pub struct Insets<T> {
     pub top: T,
     pub right: T,
     pub bottom: T,
     pub left: T,
 }
 
-impl<T: Clone> Rect<T> {
+impl<T: Copy> Insets<T> {
+    pub fn new(top: T, right: T, bottom: T, left: T) -> Self {
+        Self {
+            top,
+            right,
+            bottom,
+            left,
+        }
+    }
+
     pub fn uniform(value: T) -> Self {
         Self {
-            top: value.clone(),
-            right: value.clone(),
-            bottom: value.clone(),
+            top: value,
+            right: value,
+            bottom: value,
             left: value,
         }
     }
 }
 
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct Rect<T> {
+    pub location: Point<T>,
+    pub size: Size<T>,
+}
+
+impl<T: Copy> Rect<T> {
+    pub fn new(location: Point<T>, size: Size<T>) -> Self {
+        Self { location, size }
+    }
+
+    pub fn xywh(x: T, y: T, width: T, height: T) -> Self {
+        Self {
+            location: Point::new(x, y),
+            size: Size::wh(width, height),
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct Point<T> {
+    pub x: T,
+    pub y: T,
+}
+
+impl<T: Clone> Point<T> {
+    pub fn new(x: T, y: T) -> Self {
+        Self { x, y }
+    }
+}
+
 #[derive(Debug, Clone)]
-pub enum LayoutStyle {
+pub enum LayoutKind {
     Container(ContainerStyle),
     Leaf(LeafStyle),
 }
 
-impl Into<LayoutStyle> for ContainerStyle {
-    fn into(self) -> LayoutStyle {
-        LayoutStyle::Container(self)
+impl Into<LayoutKind> for ContainerStyle {
+    fn into(self) -> LayoutKind {
+        LayoutKind::Container(self)
     }
 }
 
-impl Into<LayoutStyle> for LeafStyle {
-    fn into(self) -> LayoutStyle {
-        LayoutStyle::Leaf(self)
+impl Into<LayoutKind> for LeafStyle {
+    fn into(self) -> LayoutKind {
+        LayoutKind::Leaf(self)
     }
 }
 
-pub type Margin = Rect<DefiniteDimensionAuto>;
-pub type Padding = Rect<DefiniteDimension>;
+pub type Margin = Insets<DefiniteDimensionAuto>;
+pub type Padding = Insets<DefiniteDimension>;
 pub type Gap = Size<DefiniteDimension>;
 
 #[derive(Debug, Clone, Copy)]
@@ -152,6 +192,13 @@ pub enum DefiniteDimensionAuto {
     Auto,
     Points(f32),
     Percent(f32),
+}
+
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub enum AvailableSpace {
+    Definite(f32),
+    MinContent,
+    MaxContent,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

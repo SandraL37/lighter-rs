@@ -29,9 +29,9 @@ pub enum NodeKind {
 
 #[derive(Debug)]
 pub struct NodeProps {
-    opacity: f32,
-    z_index: i32,
-    transform: Transform,
+    pub opacity: f32,
+    pub z_index: i32,
+    pub transform: Transform,
 }
 
 impl Default for NodeProps {

@@ -1,10 +1,10 @@
 use crate::{
     core::{
+        arena::NodeArena,
         error::*,
         layout::LeafStyle,
         node::{NodeId, NodeKind, NodeProps, NodePropsExt},
         style::Color,
-        tree::BuildCtx,
     },
     elements::{Element, ElementBuild, ElementKind},
 };
@@ -30,9 +30,9 @@ impl Text {
 
 #[derive(Debug, Clone)]
 pub struct TextProps {
-    content: String,
-    color: Color,
-    font_size: f32,
+    pub content: String,
+    pub color: Color,
+    pub font_size: f32,
 }
 
 impl TextProps {
@@ -58,7 +58,7 @@ impl Into<ElementKind> for Text {
 }
 
 impl ElementBuild for Text {
-    fn build(self, ctx: &mut BuildCtx, parent: Option<NodeId>) -> Result<NodeId> {
+    fn build(self, ctx: &mut NodeArena, parent: Option<NodeId>) -> Result<NodeId> {
         ctx.create_node(
             NodeKind::Text(self.props),
             self.node_props,

@@ -2,14 +2,20 @@ use slotmap::Key;
 use taffy::{compute_flexbox_layout, compute_leaf_layout};
 
 use crate::core::{
+    arena::NodeArena,
     layout::*,
     node::{Node, NodeId, NodeKind},
-    tree::NodeArena,
 };
 
-pub type EngineStyle = taffy::Style;
-pub type EngineLayout = taffy::Layout;
-pub type EngineCache = taffy::Cache;
+pub type LayoutStyle = taffy::Style;
+pub type ComputedLayout = taffy::Layout;
+pub type UnroundedLayout = taffy::Layout;
+pub type LayoutCache = taffy::Cache;
+
+pub fn compute_layout(arena: &mut NodeArena, root: NodeId, available_space: Size<AvailableSpace>) {
+    taffy::compute_root_layout(arena, root.into(), available_space.into());
+    taffy::round_layout(arena, root.into());
+}
 
 impl From<NodeId> for taffy::NodeId {
     fn from(value: NodeId) -> Self {
@@ -217,14 +223,45 @@ impl From<DefiniteDimensionAuto> for taffy::LengthPercentageAuto {
     }
 }
 
-impl<T: Into<U>, U> From<Rect<T>> for taffy::Rect<U> {
+impl From<AvailableSpace> for taffy::AvailableSpace {
     #[inline(always)]
-    fn from(rect: Rect<T>) -> Self {
+    fn from(space: AvailableSpace) -> Self {
+        match space {
+            AvailableSpace::Definite(points) => taffy::AvailableSpace::Definite(points),
+            AvailableSpace::MinContent => taffy::AvailableSpace::MinContent,
+            AvailableSpace::MaxContent => taffy::AvailableSpace::MaxContent,
+        }
+    }
+}
+
+impl<T: Into<U>, U> From<Insets<T>> for taffy::Rect<U> {
+    #[inline(always)]
+    fn from(insets: Insets<T>) -> Self {
         Self {
-            left: rect.left.into(),
-            right: rect.right.into(),
-            top: rect.top.into(),
-            bottom: rect.bottom.into(),
+            left: insets.left.into(),
+            right: insets.right.into(),
+            top: insets.top.into(),
+            bottom: insets.bottom.into(),
+        }
+    }
+}
+
+impl<T: Into<U>, U> From<Point<T>> for taffy::Point<U> {
+    #[inline(always)]
+    fn from(point: Point<T>) -> Self {
+        Self {
+            x: point.x.into(),
+            y: point.y.into(),
+        }
+    }
+}
+
+impl<T: Into<U>, U> From<taffy::Point<T>> for Point<U> {
+    #[inline(always)]
+    fn from(point: taffy::Point<T>) -> Self {
+        Self {
+            x: point.x.into(),
+            y: point.y.into(),
         }
     }
 }
@@ -289,10 +326,10 @@ impl From<FlexWrap> for taffy::FlexWrap {
     }
 }
 
-impl From<LayoutStyle> for taffy::Style {
-    fn from(style: LayoutStyle) -> Self {
+impl From<LayoutKind> for taffy::Style {
+    fn from(style: LayoutKind) -> Self {
         match style {
-            LayoutStyle::Container(container) => Self {
+            LayoutKind::Container(container) => Self {
                 size: container.size.into(),
                 min_size: container.min_size.into(),
                 max_size: container.max_size.into(),
@@ -305,7 +342,7 @@ impl From<LayoutStyle> for taffy::Style {
                 flex_wrap: container.flex_wrap.into(),
                 ..Default::default()
             },
-            LayoutStyle::Leaf(leaf) => Self {
+            LayoutKind::Leaf(leaf) => Self {
                 size: leaf.size.into(),
                 min_size: leaf.min_size.into(),
                 max_size: leaf.max_size.into(),

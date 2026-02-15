@@ -1,4 +1,4 @@
-use crate::core::{error::*, node::NodeId, tree::BuildCtx};
+use crate::core::{arena::NodeArena, error::*, node::NodeId};
 
 pub mod div;
 pub mod text;
@@ -10,16 +10,16 @@ pub enum ElementKind {
 }
 
 impl ElementKind {
-    pub fn build(self, ctx: &mut BuildCtx, parent: Option<NodeId>) -> Result<NodeId> {
+    pub fn build(self, arena: &mut NodeArena, parent: Option<NodeId>) -> Result<NodeId> {
         match self {
-            ElementKind::Div(div) => div.build(ctx, parent),
-            ElementKind::Text(text) => text.build(ctx, parent),
+            ElementKind::Div(div) => div.build(arena, parent),
+            ElementKind::Text(text) => text.build(arena, parent),
         }
     }
 }
 
 pub trait ElementBuild {
-    fn build(self, ctx: &mut BuildCtx, parent: Option<NodeId>) -> Result<NodeId>;
+    fn build(self, arena: &mut NodeArena, parent: Option<NodeId>) -> Result<NodeId>;
 }
 
 pub trait Element: Sized + ElementBuild + Into<ElementKind> {}

@@ -1,5 +1,6 @@
 use crate::{
     core::{
+        arena::NodeArena,
         error::*,
         layout::{
             AlignItems, ContainerStyle, DefiniteDimension, Dimension, FlexDirection, FlexWrap,
@@ -7,7 +8,6 @@ use crate::{
         },
         node::{NodeId, NodeKind, NodeProps, NodePropsExt},
         style::Color,
-        tree::BuildCtx,
     },
     elements::{Element, ElementBuild, ElementKind},
 };
@@ -112,7 +112,7 @@ impl Div {
 
 #[derive(Debug, Clone, Copy)]
 pub struct DivProps {
-    background_color: Color,
+    pub background_color: Color,
 }
 
 impl Default for DivProps {
@@ -130,7 +130,7 @@ impl Into<ElementKind> for Div {
 }
 
 impl ElementBuild for Div {
-    fn build(self, ctx: &mut BuildCtx, parent: Option<NodeId>) -> Result<NodeId> {
+    fn build(self, ctx: &mut NodeArena, parent: Option<NodeId>) -> Result<NodeId> {
         let id = ctx.create_node(
             NodeKind::Div(self.props),
             self.node_props,
