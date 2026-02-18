@@ -143,9 +143,9 @@ impl Default for ContainerStyle {
             size: Size::wh(Dimension::Auto, Dimension::Auto),
             min_size: Size::wh(Dimension::Auto, Dimension::Auto),
             max_size: Size::wh(Dimension::Auto, Dimension::Auto),
-            margin: Margin::uniform(DefiniteDimensionAuto::Points(0.0)),
-            padding: Padding::uniform(DefiniteDimension::Points(0.0)),
-            gap: Gap::uniform(DefiniteDimension::Points(0.0)),
+            margin: Margin::uniform(DefiniteDimensionAuto::Pixels(0.0)),
+            padding: Padding::uniform(DefiniteDimension::Pixels(0.0)),
+            gap: Gap::uniform(DefiniteDimension::Pixels(0.0)),
             flex_direction: FlexDirection::Row,
             justify_content: JustifyContent::Start,
             align_items: AlignItems::Stretch,
@@ -169,7 +169,7 @@ impl Default for LeafStyle {
             size: Size::wh(Dimension::Auto, Dimension::Auto),
             min_size: Size::wh(Dimension::Auto, Dimension::Auto),
             max_size: Size::wh(Dimension::Auto, Dimension::Auto),
-            margin: Margin::uniform(DefiniteDimensionAuto::Points(0.0)),
+            margin: Margin::uniform(DefiniteDimensionAuto::Pixels(0.0)),
         }
     }
 }
@@ -177,20 +177,20 @@ impl Default for LeafStyle {
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub enum Dimension {
     Auto,
-    Points(f32),
+    Pixels(f32),
     Percent(f32),
 }
 
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub enum DefiniteDimension {
-    Points(f32),
+    Pixels(f32),
     Percent(f32),
 }
 
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub enum DefiniteDimensionAuto {
     Auto,
-    Points(f32),
+    Pixels(f32),
     Percent(f32),
 }
 
@@ -235,33 +235,33 @@ pub enum FlexWrap {
     WrapReverse,
 }
 
-pub trait PointsDimension {
-    fn points(value: f32) -> Self;
+pub trait PixelsDimension {
+    fn pixels(value: f32) -> Self;
 }
 
-impl PointsDimension for Dimension {
+impl PixelsDimension for Dimension {
     #[inline(always)]
-    fn points(value: f32) -> Self {
-        Dimension::Points(value)
+    fn pixels(value: f32) -> Self {
+        Dimension::Pixels(value)
     }
 }
 
-impl PointsDimension for DefiniteDimension {
+impl PixelsDimension for DefiniteDimension {
     #[inline(always)]
-    fn points(value: f32) -> Self {
-        DefiniteDimension::Points(value)
+    fn pixels(value: f32) -> Self {
+        DefiniteDimension::Pixels(value)
     }
 }
 
-impl PointsDimension for DefiniteDimensionAuto {
+impl PixelsDimension for DefiniteDimensionAuto {
     #[inline(always)]
-    fn points(value: f32) -> Self {
-        DefiniteDimensionAuto::Points(value)
+    fn pixels(value: f32) -> Self {
+        DefiniteDimensionAuto::Pixels(value)
     }
 }
 
-pub fn px<T: PointsDimension>(value: f32) -> T {
-    T::points(value)
+pub fn px<T: PixelsDimension>(value: f32) -> T {
+    T::pixels(value)
 }
 
 pub trait PercentDimension {

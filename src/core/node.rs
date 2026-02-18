@@ -27,11 +27,14 @@ pub enum NodeKind {
     Text(TextProps),
 }
 
+pub type NodeKey = u64;
+
 #[derive(Debug)]
 pub struct NodeProps {
     pub opacity: f32,
     pub z_index: i32,
     pub transform: Transform,
+    pub key: Option<NodeKey>,
 }
 
 impl Default for NodeProps {
@@ -40,6 +43,7 @@ impl Default for NodeProps {
             opacity: 1.0,
             z_index: 0,
             transform: Transform::IDENTITY,
+            key: None,
         }
     }
 }
@@ -59,6 +63,11 @@ pub trait NodePropsExt: Sized {
 
     fn transform(mut self, t: Transform) -> Self {
         self.props_mut().transform = t;
+        self
+    }
+
+    fn key(mut self, key: NodeKey) -> Self {
+        self.props_mut().key = Some(key);
         self
     }
 }

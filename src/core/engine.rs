@@ -1,6 +1,8 @@
 use crate::core::{
+    dirty::DirtyFlags,
     error::*,
     layout::{AvailableSpace, Size},
+    node::{Node, NodeKey},
     render::Renderer,
     tree::Tree,
 };
@@ -46,5 +48,18 @@ impl<R: Renderer> Engine<R> {
 
     pub fn tree(&self) -> &Tree {
         &self.tree
+    }
+
+    pub fn get_node(&self, key: NodeKey) -> Result<&Node> {
+        self.tree.get_node_by_key(key)
+    }
+
+    pub fn mutate(
+        &mut self,
+        key: NodeKey,
+        flags: DirtyFlags,
+        f: impl FnOnce(&mut Node),
+    ) -> Result<()> {
+        self.tree.mutate_by_key(key, flags, f)
     }
 }

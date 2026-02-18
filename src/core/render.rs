@@ -27,6 +27,15 @@ pub enum RenderCommand {
     },
 }
 
+impl RenderCommand {
+    pub fn z_index(&self) -> i32 {
+        match self {
+            RenderCommand::Rect { z_index, .. } => *z_index,
+            RenderCommand::Text { z_index, .. } => *z_index,
+        }
+    }
+}
+
 pub trait Renderer {
     fn render(&mut self, commands: &[RenderCommand]) -> Result<()>;
     fn resize(&mut self, size: Size<u32>) -> Result<()>;

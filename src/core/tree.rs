@@ -1,9 +1,10 @@
 use crate::{
     core::{
         arena::NodeArena,
+        dirty::DirtyFlags,
         error::*,
         layout::{AvailableSpace, Point, Rect, Size, compute_layout},
-        node::{Node, NodeId, NodeKind},
+        node::{Node, NodeId, NodeKey, NodeKind},
         render::RenderCommand,
     },
     elements::Element,
@@ -34,20 +35,31 @@ impl Tree {
         self.arena.get_node_mut(node_id)
     }
 
+    pub fn get_node_by_key(&self, key: NodeKey) -> Result<&Node> {
+        self.arena.get_node_by_key(key)
+    }
+
+    pub fn get_node_mut_by_key(&mut self, key: NodeKey) -> Result<&mut Node> {
+        self.arena.get_node_mut_by_key(key)
+    }
+
     pub fn traverse_recursive<T: Copy>(
-        &self,
+        &mut self,
         node_id: NodeId,
-        callback: &mut impl FnMut(&Node, T) -> T,
+        callback: &mut impl FnMut(&mut Node, T) -> T,
         data: T,
     ) {
-        let node = self.get_node(node_id).unwrap();
+        let node = self.get_node_mut(node_id).unwrap();
         let result = callback(node, data);
-        for child_id in node.children.iter() {
-            self.traverse_recursive(*child_id, callback, result);
+
+        // TODO: too long
+        let children: Vec<NodeId> = node.children.iter().copied().collect();
+        for child_id in children {
+            self.traverse_recursive(child_id, callback, result);
         }
     }
 
-    pub fn build_render_list(&self) -> Vec<RenderCommand> {
+    pub fn build_render_list(&mut self) -> Vec<RenderCommand> {
         let mut commands = Vec::new();
         let cursor = Point::new(0.0, 0.0);
 
@@ -60,17 +72,15 @@ impl Tree {
 
                 let bounds = Rect::xywh(cursor.x, cursor.y, layout.size.width, layout.size.height);
 
-                match &node.kind {
-                    NodeKind::Div(props) => {
-                        commands.push(RenderCommand::Rect {
-                            bounds,
-                            color: props.background_color,
-                            opacity: node.props.opacity,
-                            transform: node.props.transform,
-                            z_index: node.props.z_index,
-                        });
-                    }
-                    NodeKind::Text(props) => commands.push(RenderCommand::Text {
+                commands.push(match &node.kind {
+                    NodeKind::Div(props) => RenderCommand::Rect {
+                        bounds,
+                        color: props.background_color,
+                        opacity: node.props.opacity,
+                        transform: node.props.transform,
+                        z_index: node.props.z_index,
+                    },
+                    NodeKind::Text(props) => RenderCommand::Text {
                         bounds,
                         content: props.content.clone(),
                         color: props.color,
@@ -78,18 +88,47 @@ impl Tree {
                         opacity: node.props.opacity,
                         transform: node.props.transform,
                         z_index: node.props.z_index,
-                    }),
-                }
+                    },
+                });
 
                 cursor
             },
             cursor,
         );
 
+        // TODO: Sorting can be slow, consider avoiding it if possible
+        commands.sort_by(|a, b| a.z_index().cmp(&b.z_index()));
+
         commands
     }
 
     pub fn compute_layout(&mut self, available_space: Size<AvailableSpace>) {
         compute_layout(&mut self.arena, self.root, available_space.into());
+    }
+
+    pub fn mutate(
+        &mut self,
+        node_id: NodeId,
+        flags: DirtyFlags,
+        f: impl FnOnce(&mut Node),
+    ) -> Result<()> {
+        let node = self.arena.get_node_mut(node_id)?;
+        f(node);
+        self.arena.mark_dirty(node_id, flags);
+        Ok(())
+    }
+
+    pub fn mutate_by_key(
+        &mut self,
+        key: NodeKey,
+        flags: DirtyFlags,
+        f: impl FnOnce(&mut Node),
+    ) -> Result<()> {
+        let node_id = self.arena.get_node_id_by_key(key)?;
+        self.mutate(node_id, flags, f)
+    }
+
+    pub fn root(&self) -> NodeId {
+        self.root
     }
 }

@@ -1,57 +1,78 @@
+use std::{
+    sync::atomic::{AtomicU32, Ordering},
+    time::Instant,
+};
+
 use lighter::{
-    core::{engine::Engine, render::tinyskia::TinySkiaRenderer, tree::Tree},
-    elements::Element,
+    core::{
+        dirty::DirtyFlags, engine::Engine, node::NodeKind, render::tinyskia::TinySkiaRenderer,
+        tree::Tree,
+    },
     prelude::*,
 };
 
+fn engine_frame(engine: &mut Engine<TinySkiaRenderer>) {
+    static FRAME_COUNT: AtomicU32 = AtomicU32::new(0);
+    let count = FRAME_COUNT.fetch_add(1, Ordering::Relaxed);
+    let output = format!("output/{}.png", count);
+
+    engine.frame().unwrap();
+    engine.renderer().save_png(output.as_str()).unwrap();
+}
+
 fn main() -> Result<(), Box<dyn std::error::Error>> {
+    let start = Instant::now();
+
     let page = div()
         .size(percent(1.0))
         .bg(Color::rgba(1.0, 1.0, 1.0, 0.5))
         .align(AlignItems::Center)
         .justify(JustifyContent::Center)
-        .child(some_squares());
+        .key(18)
+        .child(
+            div()
+                .key(42)
+                .size(px(200.0))
+                .opacity(0.5)
+                .bg(Color::rgba(1.0, 0.0, 0.0, 1.0)),
+        );
 
     let tree = Tree::build(page)?;
     let renderer = TinySkiaRenderer::new(600, 600)?;
 
     let mut engine = Engine::new(tree, renderer);
-    engine.frame()?;
-    engine.renderer().save_png("output.png")?;
+    engine_frame(&mut engine);
+
+    engine.mutate(
+        42,
+        DirtyFlags::PAINT | DirtyFlags::LAYOUT,
+        |node| match &mut node.kind {
+            NodeKind::Div(props) => {
+                props.background_color = Color::rgba(0.0, 1.0, 0.0, 1.0);
+                node.layout.style.size.width = Dimension::percent(1.0).into();
+            }
+            _ => {}
+        },
+    )?;
+
+    engine_frame(&mut engine);
+
+    engine.mutate(
+        18,
+        DirtyFlags::PAINT | DirtyFlags::LAYOUT,
+        |node| match &mut node.kind {
+            NodeKind::Div(props) => {
+                props.background_color = Color::rgba(0.47, 0.56, 0.29, 1.0);
+                node.layout.style.size.width = Dimension::Pixels(400.0).into();
+                node.layout.style.size.height = Dimension::Pixels(100.0).into();
+            }
+            _ => {}
+        },
+    )?;
+
+    engine_frame(&mut engine);
+
+    println!("elapsed: {:?}", start.elapsed());
 
     Ok(())
-}
-
-fn some_squares() -> impl Element {
-    div()
-        .align(AlignItems::Center)
-        .justify(JustifyContent::Center)
-        .gap(px(10.0))
-        .bg(Color::rgba(0.68, 0.65, 0.23, 0.5))
-        .flex_wrap(FlexWrap::Wrap)
-        .p(Padding::uniform(px(20.0)))
-        .child(
-            div()
-                .p(Padding::uniform(px(10.0)))
-                .bg(Color::rgba(0.86, 0.56, 0.32, 1.0))
-                .child(div().w(px(100.0)).h(px(50.0)).bg(Color::WHITE)),
-        )
-        .child(
-            div()
-                .w(px(123.0))
-                .h(px(85.0))
-                .bg(Color::rgba(0.68, 0.56, 0.32, 1.0)),
-        )
-        .child(
-            div()
-                .w(px(75.0))
-                .h(px(123.0))
-                .bg(Color::rgba(0.86, 0.65, 0.32, 1.0)),
-        )
-        .child(
-            div()
-                .w(px(89.0))
-                .h(px(97.0))
-                .bg(Color::rgba(0.86, 0.56, 0.23, 1.0)),
-        )
 }

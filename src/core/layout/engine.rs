@@ -3,6 +3,7 @@ use taffy::{compute_flexbox_layout, compute_leaf_layout};
 
 use crate::core::{
     arena::NodeArena,
+    dirty::DirtyFlags,
     layout::*,
     node::{Node, NodeId, NodeKind},
 };
@@ -95,7 +96,9 @@ impl taffy::LayoutPartialTree for NodeArena {
         inputs: taffy::LayoutInput,
     ) -> taffy::LayoutOutput {
         taffy::compute_cached_layout(self, node_id, inputs, |tree, node_id, inputs| {
-            let node = tree.get_node_unchecked(node_id);
+            let node = tree.get_node_mut_unchecked(node_id);
+
+            node.mark_clean(DirtyFlags::LAYOUT);
 
             match &node.kind {
                 NodeKind::Div(_) => compute_flexbox_layout(tree, node_id, inputs),
@@ -194,7 +197,7 @@ impl From<Dimension> for taffy::Dimension {
     fn from(dimension: Dimension) -> Self {
         match dimension {
             Dimension::Auto => taffy::Dimension::auto(),
-            Dimension::Points(points) => taffy::Dimension::length(points),
+            Dimension::Pixels(pixels) => taffy::Dimension::length(pixels),
             Dimension::Percent(percent) => taffy::Dimension::percent(percent),
         }
     }
@@ -204,7 +207,7 @@ impl From<DefiniteDimension> for taffy::LengthPercentage {
     #[inline(always)]
     fn from(dimension: DefiniteDimension) -> Self {
         match dimension {
-            DefiniteDimension::Points(points) => taffy::LengthPercentage::length(points),
+            DefiniteDimension::Pixels(pixels) => taffy::LengthPercentage::length(pixels),
             DefiniteDimension::Percent(percent) => taffy::LengthPercentage::percent(percent),
         }
     }
@@ -215,7 +218,7 @@ impl From<DefiniteDimensionAuto> for taffy::LengthPercentageAuto {
     fn from(dimension: DefiniteDimensionAuto) -> Self {
         match dimension {
             DefiniteDimensionAuto::Auto => taffy::LengthPercentageAuto::auto(),
-            DefiniteDimensionAuto::Points(points) => taffy::LengthPercentageAuto::length(points),
+            DefiniteDimensionAuto::Pixels(pixels) => taffy::LengthPercentageAuto::length(pixels),
             DefiniteDimensionAuto::Percent(percent) => {
                 taffy::LengthPercentageAuto::percent(percent)
             }
@@ -227,7 +230,7 @@ impl From<AvailableSpace> for taffy::AvailableSpace {
     #[inline(always)]
     fn from(space: AvailableSpace) -> Self {
         match space {
-            AvailableSpace::Definite(points) => taffy::AvailableSpace::Definite(points),
+            AvailableSpace::Definite(pixels) => taffy::AvailableSpace::Definite(pixels),
             AvailableSpace::MinContent => taffy::AvailableSpace::MinContent,
             AvailableSpace::MaxContent => taffy::AvailableSpace::MaxContent,
         }

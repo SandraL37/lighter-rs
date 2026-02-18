@@ -57,11 +57,22 @@ impl From<Rect<f32>> for tiny_skia::Rect {
 
 impl Renderer for TinySkiaRenderer {
     fn render(&mut self, commands: &[RenderCommand]) -> Result<()> {
+        self.pixmap.fill(tiny_skia::Color::TRANSPARENT);
+
         for cmd in commands {
             match cmd {
-                RenderCommand::Rect { bounds, color, .. } => {
+                RenderCommand::Rect {
+                    bounds,
+                    color,
+                    opacity,
+                    ..
+                } => {
                     let mut paint = tiny_skia::Paint::default();
-                    paint.set_color((*color).into());
+                    let color = Color {
+                        a: color.a * opacity, // TODO: This is an escape hatch and needs rework!
+                        ..*color
+                    };
+                    paint.set_color(color.into());
 
                     self.pixmap.fill_rect(
                         (*bounds).into(),
@@ -70,9 +81,18 @@ impl Renderer for TinySkiaRenderer {
                         None,
                     );
                 }
-                RenderCommand::Text { bounds, color, .. } => {
+                RenderCommand::Text {
+                    bounds,
+                    color,
+                    opacity,
+                    ..
+                } => {
                     let mut paint = tiny_skia::Paint::default();
-                    paint.set_color((*color).into());
+                    let color = Color {
+                        a: color.a * opacity, // TODO: This is an escape hatch and needs rework!
+                        ..*color
+                    };
+                    paint.set_color(color.into());
 
                     self.pixmap.fill_rect(
                         (*bounds).into(),
@@ -88,7 +108,7 @@ impl Renderer for TinySkiaRenderer {
     }
 
     fn resize(&mut self, size: Size<u32>) -> Result<()> {
-        TinySkiaRenderer::create_pixmap(size)?;
+        self.pixmap = TinySkiaRenderer::create_pixmap(size)?;
         Ok(())
     }
 
