@@ -1,6 +1,6 @@
 # Lighter
-This is a lightweight UI framework focused on performance.
-It is in development. So it isn't ready for production.
+A barely working ~~UI Framework~~ (Frame generator). It uses tiny-skia now but in future it will be
+rewired to Vulkan or DirectX.
 
 # Current state of development
 
@@ -14,5 +14,7 @@ fn main() {
         .child(text("hello world"));
 
     println!("{page:#?}");
+    
+    // + some dirty tracking
 }
 ```
