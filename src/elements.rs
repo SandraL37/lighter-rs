@@ -1,25 +1,15 @@
-use crate::core::{arena::NodeArena, error::*, node::NodeId};
+use std::fmt::Debug;
+
+use crate::core::{arena::NodeArena, cx::Cx, error::*, node::NodeId};
 
 pub mod div;
 pub mod text;
 
-#[derive(Debug)]
-pub enum ElementKind {
-    Div(div::Div),
-    Text(text::Text),
+pub trait Element: Debug {
+    fn build(
+        self: Box<Self>,
+        arena: &mut NodeArena,
+        cx: &mut Cx,
+        parent: Option<NodeId>,
+    ) -> Result<NodeId>;
 }
-
-impl ElementKind {
-    pub fn build(self, arena: &mut NodeArena, parent: Option<NodeId>) -> Result<NodeId> {
-        match self {
-            ElementKind::Div(div) => div.build(arena, parent),
-            ElementKind::Text(text) => text.build(arena, parent),
-        }
-    }
-}
-
-pub trait ElementBuild {
-    fn build(self, arena: &mut NodeArena, parent: Option<NodeId>) -> Result<NodeId>;
-}
-
-pub trait Element: Sized + ElementBuild + Into<ElementKind> {}

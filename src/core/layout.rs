@@ -2,6 +2,12 @@ mod engine;
 
 pub use engine::{ComputedLayout, LayoutCache, LayoutStyle, UnroundedLayout, compute_layout};
 
+use crate::core::{
+    cx::ReactivePropsExt,
+    dirty::DirtyFlags,
+    signal::{Reactive, ReadSignal},
+};
+
 #[derive(Debug, Default, Clone)]
 pub struct NodeLayout {
     pub style: LayoutStyle,
@@ -154,6 +160,226 @@ impl Default for ContainerStyle {
     }
 }
 
+pub trait ContainerStylePropsExt: ReactivePropsExt {
+    fn container_style_mut(&mut self) -> &mut ContainerStyle;
+
+    fn w(mut self, width: impl Into<Reactive<Dimension>>) -> Self {
+        self.bind(
+            width,
+            &mut |this, v| {
+                this.container_style_mut().size.width = v;
+            },
+            DirtyFlags::LAYOUT,
+            |_, layout, v| {
+                layout.style.size.width = v.into();
+            },
+        );
+        self
+    }
+
+    fn h(mut self, height: impl Into<Reactive<Dimension>>) -> Self {
+        self.bind(
+            height,
+            &mut |this, v| {
+                this.container_style_mut().size.height = v;
+            },
+            DirtyFlags::LAYOUT,
+            |_, layout, v| {
+                layout.style.size.height = v.into();
+            },
+        );
+        self
+    }
+
+    fn size(mut self, size: impl Into<Reactive<Dimension>>) -> Self {
+        self.bind(
+            size,
+            &mut |this, v| {
+                this.container_style_mut().size.height = v;
+                this.container_style_mut().size.width = v;
+            },
+            DirtyFlags::LAYOUT,
+            |_, layout, v| {
+                layout.style.size.height = v.into();
+                layout.style.size.width = v.into();
+            },
+        );
+        self
+    }
+
+    fn max_w(mut self, max_width: impl Into<Reactive<Dimension>>) -> Self {
+        self.bind(
+            max_width,
+            &mut |this, v| {
+                this.container_style_mut().max_size.width = v;
+            },
+            DirtyFlags::LAYOUT,
+            |_, layout, v| {
+                layout.style.max_size.width = v.into();
+            },
+        );
+        self
+    }
+
+    fn max_h(mut self, max_height: impl Into<Reactive<Dimension>>) -> Self {
+        self.bind(
+            max_height,
+            &mut |this, v| {
+                this.container_style_mut().max_size.height = v;
+            },
+            DirtyFlags::LAYOUT,
+            |_, layout, v| {
+                layout.style.max_size.height = v.into();
+            },
+        );
+        self
+    }
+
+    fn max_size(mut self, max_size: impl Into<Reactive<Dimension>>) -> Self {
+        self.bind(
+            max_size,
+            &mut |this, v| {
+                this.container_style_mut().max_size.width = v;
+                this.container_style_mut().max_size.height = v;
+            },
+            DirtyFlags::LAYOUT,
+            |_, layout, v| {
+                layout.style.max_size.width = v.into();
+                layout.style.max_size.height = v.into();
+            },
+        );
+        self
+    }
+
+    fn p(mut self, padding: impl Into<Reactive<Padding>>) -> Self {
+        self.bind(
+            padding,
+            &mut |this, v| {
+                this.container_style_mut().padding = v;
+            },
+            DirtyFlags::LAYOUT,
+            |_, layout, v| {
+                layout.style.padding = v.into();
+            },
+        );
+        self
+    }
+
+    fn m(mut self, margin: impl Into<Reactive<Margin>>) -> Self {
+        self.bind(
+            margin,
+            &mut |this, v| {
+                this.container_style_mut().margin = v;
+            },
+            DirtyFlags::LAYOUT,
+            |_, layout, v| {
+                layout.style.margin = v.into();
+            },
+        );
+        self
+    }
+
+    fn align(mut self, align_items: impl Into<Reactive<AlignItems>>) -> Self {
+        self.bind(
+            align_items,
+            &mut |this, v| {
+                this.container_style_mut().align_items = v;
+            },
+            DirtyFlags::LAYOUT,
+            |_, layout, v| {
+                layout.style.align_items = Some(v.into());
+            },
+        );
+        self
+    }
+
+    fn justify(mut self, justify_content: impl Into<Reactive<JustifyContent>>) -> Self {
+        self.bind(
+            justify_content,
+            &mut |this, v| {
+                this.container_style_mut().justify_content = v;
+            },
+            DirtyFlags::LAYOUT,
+            |_, layout, v| {
+                layout.style.justify_content = Some(v.into());
+            },
+        );
+        self
+    }
+
+    fn gap_x(mut self, gap: impl Into<Reactive<DefiniteDimension>>) -> Self {
+        self.bind(
+            gap,
+            &mut |this, v| {
+                this.container_style_mut().gap.width = v;
+            },
+            DirtyFlags::LAYOUT,
+            |_, layout, v| {
+                layout.style.gap.width = v.into();
+            },
+        );
+        self
+    }
+
+    fn gap_y(mut self, gap: impl Into<Reactive<DefiniteDimension>>) -> Self {
+        self.bind(
+            gap,
+            &mut |this, v| {
+                this.container_style_mut().gap.height = v;
+            },
+            DirtyFlags::LAYOUT,
+            |_, layout, v| {
+                layout.style.gap.height = v.into();
+            },
+        );
+        self
+    }
+
+    fn gap(mut self, gap: impl Into<Reactive<DefiniteDimension>>) -> Self {
+        self.bind(
+            gap,
+            &mut |this, v| {
+                this.container_style_mut().gap.width = v;
+                this.container_style_mut().gap.height = v;
+            },
+            DirtyFlags::LAYOUT,
+            |_, layout, v| {
+                layout.style.gap.width = v.into();
+                layout.style.gap.height = v.into();
+            },
+        );
+        self
+    }
+
+    fn flex_direction(mut self, direction: impl Into<Reactive<FlexDirection>>) -> Self {
+        self.bind(
+            direction,
+            &mut |this, v| {
+                this.container_style_mut().flex_direction = v;
+            },
+            DirtyFlags::LAYOUT,
+            |_, layout, v| {
+                layout.style.flex_direction = v.into();
+            },
+        );
+        self
+    }
+
+    fn flex_wrap(mut self, wrap: impl Into<Reactive<FlexWrap>>) -> Self {
+        self.bind(
+            wrap,
+            &mut |this, v| {
+                this.container_style_mut().flex_wrap = v;
+            },
+            DirtyFlags::LAYOUT,
+            |_, layout, v| {
+                layout.style.flex_wrap = v.into();
+            },
+        );
+        self
+    }
+}
+
 #[derive(Debug, Clone, Copy)]
 pub struct LeafStyle {
     pub size: Size<Dimension>,
@@ -171,6 +397,112 @@ impl Default for LeafStyle {
             max_size: Size::wh(Dimension::Auto, Dimension::Auto),
             margin: Margin::uniform(DefiniteDimensionAuto::Pixels(0.0)),
         }
+    }
+}
+
+pub trait LeafStylePropsExt: ReactivePropsExt {
+    fn leaf_style_mut(&mut self) -> &mut LeafStyle;
+
+    fn w(mut self, width: impl Into<Reactive<Dimension>>) -> Self {
+        self.bind(
+            width,
+            &mut |this, v| {
+                this.leaf_style_mut().size.width = v;
+            },
+            DirtyFlags::LAYOUT,
+            |_, layout, v| {
+                layout.style.size.width = v.into();
+            },
+        );
+        self
+    }
+
+    fn h(mut self, height: impl Into<Reactive<Dimension>>) -> Self {
+        self.bind(
+            height,
+            &mut |this, v| {
+                this.leaf_style_mut().size.height = v;
+            },
+            DirtyFlags::LAYOUT,
+            |_, layout, v| {
+                layout.style.size.height = v.into();
+            },
+        );
+        self
+    }
+
+    fn size(mut self, size: impl Into<Reactive<Dimension>>) -> Self {
+        self.bind(
+            size,
+            &mut |this, v| {
+                this.leaf_style_mut().size.width = v;
+                this.leaf_style_mut().size.height = v;
+            },
+            DirtyFlags::LAYOUT,
+            |_, layout, v| {
+                layout.style.size.width = v.into();
+                layout.style.size.height = v.into();
+            },
+        );
+        self
+    }
+
+    fn max_w(mut self, max_width: impl Into<Reactive<Dimension>>) -> Self {
+        self.bind(
+            max_width,
+            &mut |this, v| {
+                this.leaf_style_mut().max_size.width = v;
+            },
+            DirtyFlags::LAYOUT,
+            |_, layout, v| {
+                layout.style.max_size.width = v.into();
+            },
+        );
+        self
+    }
+
+    fn max_h(mut self, max_height: impl Into<Reactive<Dimension>>) -> Self {
+        self.bind(
+            max_height,
+            &mut |this, v| {
+                this.leaf_style_mut().max_size.height = v;
+            },
+            DirtyFlags::LAYOUT,
+            |_, layout, v| {
+                layout.style.max_size.height = v.into();
+            },
+        );
+        self
+    }
+
+    fn max_size(mut self, max_size: impl Into<Reactive<Dimension>>) -> Self {
+        self.bind(
+            max_size,
+            &mut |this, v| {
+                this.leaf_style_mut().max_size.width = v;
+                this.leaf_style_mut().max_size.height = v;
+            },
+            DirtyFlags::LAYOUT,
+            |_, layout, v| {
+                layout.style.max_size.width = v.into();
+                layout.style.max_size.height = v.into();
+            },
+        );
+        self
+    }
+
+    fn m(mut self, margin: impl Into<Reactive<Margin>>) -> Self {
+        self.bind(
+            margin,
+            &mut |this, v| {
+                this.leaf_style_mut().margin = v;
+            },
+            DirtyFlags::LAYOUT,
+            |_, layout, v| {
+                layout.style.margin = v.into();
+            },
+        );
+        self
     }
 }
 
@@ -235,82 +567,61 @@ pub enum FlexWrap {
     WrapReverse,
 }
 
-pub trait PixelsDimension {
-    fn pixels(value: f32) -> Self;
+#[inline(always)]
+pub fn px(value: f32) -> DefiniteDimension {
+    DefiniteDimension::Pixels(value)
 }
 
-impl PixelsDimension for Dimension {
+#[inline(always)]
+pub fn percent(value: f32) -> DefiniteDimension {
+    DefiniteDimension::Percent(value)
+}
+
+#[inline(always)]
+pub fn auto() -> Dimension {
+    Dimension::Auto
+}
+
+impl From<DefiniteDimension> for Dimension {
     #[inline(always)]
-    fn pixels(value: f32) -> Self {
-        Dimension::Pixels(value)
+    fn from(d: DefiniteDimension) -> Self {
+        match d {
+            DefiniteDimension::Pixels(v) => Dimension::Pixels(v),
+            DefiniteDimension::Percent(v) => Dimension::Percent(v),
+        }
     }
 }
 
-impl PixelsDimension for DefiniteDimension {
+impl From<DefiniteDimension> for DefiniteDimensionAuto {
     #[inline(always)]
-    fn pixels(value: f32) -> Self {
-        DefiniteDimension::Pixels(value)
+    fn from(d: DefiniteDimension) -> Self {
+        match d {
+            DefiniteDimension::Pixels(v) => DefiniteDimensionAuto::Pixels(v),
+            DefiniteDimension::Percent(v) => DefiniteDimensionAuto::Percent(v),
+        }
     }
 }
 
-impl PixelsDimension for DefiniteDimensionAuto {
-    #[inline(always)]
-    fn pixels(value: f32) -> Self {
-        DefiniteDimensionAuto::Pixels(value)
+impl From<DefiniteDimension> for Reactive<Dimension> {
+    fn from(d: DefiniteDimension) -> Self {
+        Reactive::Static(d.into())
     }
 }
 
-pub fn px<T: PixelsDimension>(value: f32) -> T {
-    T::pixels(value)
-}
-
-pub trait PercentDimension {
-    fn percent(value: f32) -> Self;
-}
-
-impl PercentDimension for Dimension {
-    #[inline(always)]
-    fn percent(value: f32) -> Self {
-        Dimension::Percent(value)
+impl From<ReadSignal<DefiniteDimension>> for Reactive<Dimension> {
+    fn from(sig: ReadSignal<DefiniteDimension>) -> Self {
+        Reactive::Dynamic(sig.map(|d| d.into()))
     }
 }
 
-impl PercentDimension for DefiniteDimension {
-    #[inline(always)]
-    fn percent(value: f32) -> Self {
-        DefiniteDimension::Percent(value)
+impl From<DefiniteDimension> for Reactive<DefiniteDimensionAuto> {
+    fn from(d: DefiniteDimension) -> Self {
+        Reactive::Static(d.into())
     }
 }
 
-impl PercentDimension for DefiniteDimensionAuto {
-    #[inline(always)]
-    fn percent(value: f32) -> Self {
-        DefiniteDimensionAuto::Percent(value)
+impl From<ReadSignal<DefiniteDimension>> for Reactive<DefiniteDimensionAuto> {
+    fn from(sig: ReadSignal<DefiniteDimension>) -> Self {
+        Reactive::Dynamic(sig.map(|d| d.into()))
     }
-}
-
-pub fn percent<T: PercentDimension>(value: f32) -> T {
-    T::percent(value)
-}
-
-pub trait AutoDimension {
-    fn auto() -> Self;
-}
-
-impl AutoDimension for Dimension {
-    #[inline(always)]
-    fn auto() -> Self {
-        Dimension::Auto
-    }
-}
-
-impl AutoDimension for DefiniteDimensionAuto {
-    #[inline(always)]
-    fn auto() -> Self {
-        DefiniteDimensionAuto::Auto
-    }
-}
-
-pub fn auto<T: AutoDimension>() -> T {
-    T::auto()
 }

@@ -5,7 +5,7 @@ use crate::core::{
     arena::NodeArena,
     dirty::DirtyFlags,
     layout::*,
-    node::{Node, NodeId, NodeKind},
+    node::{NodeId, NodeKind},
 };
 
 pub type LayoutStyle = taffy::Style;
@@ -41,37 +41,27 @@ impl Iterator for ChildIter<'_> {
 const NON_EXISTENT_NODE_ID: &str =
     "Taffy Layout Engine unexpected error: impossible to get a node because it does not exist.";
 
-impl NodeArena {
-    fn get_node_unchecked(&self, node_id: taffy::NodeId) -> &Node {
-        self.get_node(node_id.into()).expect(NON_EXISTENT_NODE_ID)
-    }
-
-    fn get_node_mut_unchecked(&mut self, node_id: taffy::NodeId) -> &mut Node {
-        self.get_node_mut(node_id.into())
-            .expect(NON_EXISTENT_NODE_ID)
-    }
-}
-
 impl taffy::TraversePartialTree for NodeArena {
     type ChildIter<'a> = ChildIter<'a>;
 
     fn child_ids(&self, node_id: taffy::NodeId) -> Self::ChildIter<'_> {
-        let node = self.get_node_unchecked(node_id);
+        let node = self
+            .get_children(node_id.into())
+            .expect(NON_EXISTENT_NODE_ID);
 
-        ChildIter(node.children.iter())
+        ChildIter(node.iter())
     }
 
     fn child_count(&self, parent_node_id: taffy::NodeId) -> usize {
-        self.get_node_unchecked(parent_node_id).children.len()
+        self.get_children(parent_node_id.into())
+            .expect(NON_EXISTENT_NODE_ID)
+            .len()
     }
 
     fn get_child_id(&self, parent_node_id: taffy::NodeId, child_index: usize) -> taffy::NodeId {
-        self.get_node_unchecked(parent_node_id)
-            .children
-            .get(child_index)
-            .copied()
-            .map(|child| child.into())
-            .expect(NON_EXISTENT_NODE_ID)
+        self.get_children(parent_node_id.into())
+            .expect(NON_EXISTENT_NODE_ID)[child_index]
+            .into()
     }
 }
 
@@ -83,11 +73,16 @@ impl taffy::LayoutPartialTree for NodeArena {
     type CoreContainerStyle<'a> = &'a taffy::Style;
 
     fn get_core_container_style(&self, node_id: taffy::NodeId) -> Self::CoreContainerStyle<'_> {
-        &self.get_node_unchecked(node_id).layout.style
+        &self
+            .get_layout(node_id.into())
+            .expect(NON_EXISTENT_NODE_ID)
+            .style
     }
 
     fn set_unrounded_layout(&mut self, node_id: taffy::NodeId, layout: &taffy::Layout) {
-        self.get_node_mut_unchecked(node_id).layout.unrounded = *layout;
+        self.get_layout_mut(node_id.into())
+            .expect(NON_EXISTENT_NODE_ID)
+            .unrounded = *layout;
     }
 
     fn compute_child_layout(
@@ -96,19 +91,21 @@ impl taffy::LayoutPartialTree for NodeArena {
         inputs: taffy::LayoutInput,
     ) -> taffy::LayoutOutput {
         taffy::compute_cached_layout(self, node_id, inputs, |tree, node_id, inputs| {
-            let node = tree.get_node_mut_unchecked(node_id);
+            tree.mark_clean(node_id.into(), DirtyFlags::LAYOUT)
+                .expect(NON_EXISTENT_NODE_ID);
 
-            node.mark_clean(DirtyFlags::LAYOUT);
+            let node_data = tree.get_data(node_id.into()).expect(NON_EXISTENT_NODE_ID);
+            let layout = tree.get_layout(node_id.into()).expect(NON_EXISTENT_NODE_ID);
 
-            match &node.kind {
+            match &node_data.kind {
                 NodeKind::Div(_) => compute_flexbox_layout(tree, node_id, inputs),
                 NodeKind::Text(text_props) => {
                     compute_leaf_layout(
                         inputs,
-                        &node.layout.style,
+                        &layout.style,
                         |_val, _basis| 0.0,
                         |_known_dimensions, _available_space| {
-                            taffy::Size::length(text_props.content().len() as f32 * 10.0) // Placeholder text size
+                            taffy::Size::length(text_props.content.len() as f32 * 10.0) // Placeholder text size
                         },
                     )
                 }
@@ -119,7 +116,10 @@ impl taffy::LayoutPartialTree for NodeArena {
 
 impl taffy::CacheTree for NodeArena {
     fn cache_clear(&mut self, node_id: taffy::NodeId) {
-        self.get_node_mut_unchecked(node_id).layout.cache.clear();
+        self.get_layout_mut(node_id.into())
+            .expect(NON_EXISTENT_NODE_ID)
+            .cache
+            .clear();
     }
 
     fn cache_get(
@@ -129,11 +129,10 @@ impl taffy::CacheTree for NodeArena {
         available_space: taffy::Size<taffy::AvailableSpace>,
         run_mode: taffy::RunMode,
     ) -> Option<taffy::LayoutOutput> {
-        self.get_node_unchecked(node_id).layout.cache.get(
-            known_dimensions,
-            available_space,
-            run_mode,
-        )
+        self.get_layout(node_id.into())
+            .expect(NON_EXISTENT_NODE_ID)
+            .cache
+            .get(known_dimensions, available_space, run_mode)
     }
 
     fn cache_store(
@@ -144,35 +143,44 @@ impl taffy::CacheTree for NodeArena {
         run_mode: taffy::RunMode,
         layout_output: taffy::LayoutOutput,
     ) {
-        self.get_node_mut_unchecked(node_id).layout.cache.store(
-            known_dimensions,
-            available_space,
-            run_mode,
-            layout_output,
-        );
+        self.get_layout_mut(node_id.into())
+            .expect(NON_EXISTENT_NODE_ID)
+            .cache
+            .store(known_dimensions, available_space, run_mode, layout_output);
     }
 }
 
 impl taffy::RoundTree for NodeArena {
     fn get_unrounded_layout(&self, node_id: taffy::NodeId) -> taffy::Layout {
-        self.get_node_unchecked(node_id).layout.unrounded
+        self.get_layout(node_id.into())
+            .expect(NON_EXISTENT_NODE_ID)
+            .unrounded
     }
 
     fn set_final_layout(&mut self, node_id: taffy::NodeId, layout: &taffy::Layout) {
-        self.get_node_mut_unchecked(node_id).layout.computed = *layout;
+        self.get_layout_mut(node_id.into())
+            .expect(NON_EXISTENT_NODE_ID)
+            .computed = *layout;
     }
 }
 
 impl taffy::PrintTree for NodeArena {
     fn get_debug_label(&self, node_id: taffy::NodeId) -> &'static str {
-        match self.get_node_unchecked(node_id).kind {
+        // TODO: needs rework
+        match self
+            .get_data(node_id.into())
+            .expect(NON_EXISTENT_NODE_ID)
+            .kind
+        {
             NodeKind::Div(_) => "Div",
             NodeKind::Text(_) => "Text",
         }
     }
 
     fn get_final_layout(&self, node_id: taffy::NodeId) -> taffy::Layout {
-        self.get_node_unchecked(node_id).layout.computed
+        self.get_layout(node_id.into())
+            .expect(NON_EXISTENT_NODE_ID)
+            .computed
     }
 }
 
@@ -184,11 +192,17 @@ impl taffy::LayoutFlexboxContainer for NodeArena {
         &self,
         node_id: taffy::NodeId,
     ) -> Self::FlexboxContainerStyle<'_> {
-        &self.get_node_unchecked(node_id).layout.style
+        &self
+            .get_layout(node_id.into())
+            .expect(NON_EXISTENT_NODE_ID)
+            .style
     }
 
     fn get_flexbox_child_style(&self, child_node_id: taffy::NodeId) -> Self::FlexboxItemStyle<'_> {
-        &self.get_node_unchecked(child_node_id).layout.style
+        &self
+            .get_layout(child_node_id.into())
+            .expect(NON_EXISTENT_NODE_ID)
+            .style
     }
 }
 

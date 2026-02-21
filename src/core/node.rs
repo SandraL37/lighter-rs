@@ -1,5 +1,5 @@
 use crate::{
-    core::{dirty::DirtyFlags, layout::NodeLayout, style::Transform},
+    core::{cx::ReactivePropsExt, dirty::DirtyFlags, signal::Reactive, style::Transform},
     elements::{div::DivProps, text::TextProps},
 };
 
@@ -8,17 +8,10 @@ slotmap::new_key_type! {
 }
 
 #[derive(Debug)]
-pub struct Node {
+pub struct NodeData {
     pub kind: NodeKind,
-
     pub props: NodeProps,
-
-    pub children: Vec<NodeId>,
-    pub parent: Option<NodeId>,
-
     pub dirty: DirtyFlags,
-
-    pub layout: NodeLayout,
 }
 
 #[derive(Debug)]
@@ -27,14 +20,30 @@ pub enum NodeKind {
     Text(TextProps),
 }
 
-pub type NodeKey = u64;
+impl NodeKind {
+    pub fn as_div_mut(&mut self) -> &mut DivProps {
+        if let NodeKind::Div(props) = self {
+            props
+        } else {
+            unreachable!("Not a div"); // TODO: check correctness
+        }
+    }
 
+    pub fn as_text_mut(&mut self) -> &mut TextProps {
+        if let NodeKind::Text(props) = self {
+            props
+        } else {
+            unreachable!("Not a text");
+        }
+    }
+}
+
+//  TODO: bench this
 #[derive(Debug)]
 pub struct NodeProps {
     pub opacity: f32,
     pub z_index: i32,
-    pub transform: Transform,
-    pub key: Option<NodeKey>,
+    pub transform: Option<Transform>,
 }
 
 impl Default for NodeProps {
@@ -42,32 +51,53 @@ impl Default for NodeProps {
         NodeProps {
             opacity: 1.0,
             z_index: 0,
-            transform: Transform::IDENTITY,
-            key: None,
+            transform: None, // TODO: benchmark if Box<Transform> is faster
         }
     }
 }
 
-pub trait NodePropsExt: Sized {
-    fn props_mut(&mut self) -> &mut NodeProps;
+pub trait NodePropsExt: ReactivePropsExt {
+    fn node_props_mut(&mut self) -> &mut NodeProps;
 
-    fn opacity(mut self, value: f32) -> Self {
-        self.props_mut().opacity = value;
+    fn opacity(mut self, value: impl Into<Reactive<f32>>) -> Self {
+        self.bind(
+            value,
+            &mut |this, v| {
+                this.node_props_mut().opacity = v;
+            },
+            DirtyFlags::PAINT,
+            |data, _, v| {
+                data.props.opacity = v;
+            },
+        );
         self
     }
 
-    fn z(mut self, z: i32) -> Self {
-        self.props_mut().z_index = z;
+    fn z(mut self, value: impl Into<Reactive<i32>>) -> Self {
+        self.bind(
+            value,
+            &mut |this, v| {
+                this.node_props_mut().z_index = v;
+            },
+            DirtyFlags::PAINT,
+            |data, _, v| {
+                data.props.z_index = v;
+            },
+        );
         self
     }
 
-    fn transform(mut self, t: Transform) -> Self {
-        self.props_mut().transform = t;
-        self
-    }
-
-    fn key(mut self, key: NodeKey) -> Self {
-        self.props_mut().key = Some(key);
+    fn transform(mut self, value: impl Into<Reactive<Transform>>) -> Self {
+        self.bind(
+            value,
+            &mut |this, v| {
+                this.node_props_mut().transform = Some(v);
+            },
+            DirtyFlags::PAINT,
+            |data, _, v| {
+                data.props.transform = Some(v);
+            },
+        );
         self
     }
 }

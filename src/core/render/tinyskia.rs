@@ -57,7 +57,7 @@ impl From<Rect<f32>> for tiny_skia::Rect {
 
 impl Renderer for TinySkiaRenderer {
     fn render(&mut self, commands: &[RenderCommand]) -> Result<()> {
-        self.pixmap.fill(tiny_skia::Color::TRANSPARENT);
+        self.pixmap.fill(Color::TRANSPARENT.into());
 
         for cmd in commands {
             match cmd {

@@ -1,9 +1,12 @@
+use std::sync::Arc;
+
 use crate::core::{
     error::*,
     layout::{Rect, Size},
     style::{Color, Transform},
 };
 
+// pub mod piet;
 pub mod tinyskia;
 
 #[derive(Debug)]
@@ -18,7 +21,7 @@ pub enum RenderCommand {
 
     Text {
         bounds: Rect<f32>,
-        content: String,
+        content: Arc<str>,
         color: Color,
         font_size: f32,
         opacity: f32,

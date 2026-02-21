@@ -1,59 +1,78 @@
-use std::collections::HashMap;
-
 use crate::{
+    core::layout::{LayoutKind, NodeLayout},
     core::{
-        dirty::DirtyFlags,
+        dirty::{DirtyCounter, DirtyFlags},
         error::*,
-        node::{Node, NodeId, NodeKey, NodeKind, NodeProps},
+        node::{NodeData, NodeId, NodeKind, NodeProps},
     },
-    prelude::{LayoutKind, NodeLayout},
 };
 
-/// The NodeArena owns the nodes.
-/// Handles changes to the nodes.
 #[derive(Debug)]
 pub struct NodeArena {
-    nodes: slotmap::SlotMap<NodeId, Node>,
-    node_keys: HashMap<NodeKey, NodeId>,
+    data: slotmap::SlotMap<NodeId, NodeData>,
+    layout: slotmap::SecondaryMap<NodeId, NodeLayout>,
+    children: slotmap::SecondaryMap<NodeId, Vec<NodeId>>,
+    parent: slotmap::SecondaryMap<NodeId, Option<NodeId>>,
+    dirty_counter: DirtyCounter,
 }
 
 impl NodeArena {
     pub fn new() -> Self {
         Self {
-            nodes: slotmap::SlotMap::with_key(),
-            node_keys: HashMap::new(),
+            data: slotmap::SlotMap::with_key(),
+            layout: slotmap::SecondaryMap::new(),
+            children: slotmap::SecondaryMap::new(),
+            parent: slotmap::SecondaryMap::new(),
+            dirty_counter: DirtyCounter::new(),
         }
     }
 
-    pub fn get_node(&self, node_id: NodeId) -> Result<&Node> {
-        self.nodes.get(node_id).ok_or(Error::NodeNotFound(node_id))
+    pub fn get_data(&self, node_id: NodeId) -> Result<&NodeData> {
+        self.data.get(node_id).ok_or(Error::NodeNotFound(node_id))
     }
 
-    pub fn get_node_mut(&mut self, node_id: NodeId) -> Result<&mut Node> {
-        self.nodes
+    pub fn get_data_mut(&mut self, node_id: NodeId) -> Result<&mut NodeData> {
+        self.data
             .get_mut(node_id)
             .ok_or(Error::NodeNotFound(node_id))
     }
 
-    pub fn get_node_id_by_key(&self, key: NodeKey) -> Result<NodeId> {
-        self.node_keys
-            .get(&key)
+    pub fn get_parent(&self, node_id: NodeId) -> Result<Option<NodeId>> {
+        self.parent
+            .get(node_id)
+            .ok_or(Error::NodeNotFound(node_id))
             .copied()
-            .ok_or(Error::NodeNotFoundByKey(key))
     }
 
-    pub fn get_node_by_key(&self, key: NodeKey) -> Result<&Node> {
-        self.node_keys
-            .get(&key)
-            .and_then(|id| self.nodes.get(*id))
-            .ok_or(Error::NodeNotFoundByKey(key))
+    pub fn get_children(&self, node_id: NodeId) -> Result<&Vec<NodeId>> {
+        self.children
+            .get(node_id)
+            .ok_or(Error::NodeNotFound(node_id))
     }
 
-    pub fn get_node_mut_by_key(&mut self, key: NodeKey) -> Result<&mut Node> {
-        self.node_keys
-            .get(&key)
-            .and_then(|id| self.nodes.get_mut(*id))
-            .ok_or(Error::NodeNotFoundByKey(key))
+    pub fn get_layout(&self, node_id: NodeId) -> Result<&NodeLayout> {
+        self.layout.get(node_id).ok_or(Error::NodeNotFound(node_id))
+    }
+
+    pub fn get_layout_mut(&mut self, node_id: NodeId) -> Result<&mut NodeLayout> {
+        self.layout
+            .get_mut(node_id)
+            .ok_or(Error::NodeNotFound(node_id))
+    }
+
+    pub fn get_data_layout_mut(
+        &mut self,
+        node_id: NodeId,
+    ) -> Result<(&mut NodeData, &mut NodeLayout)> {
+        let data = self
+            .data
+            .get_mut(node_id)
+            .ok_or(Error::NodeNotFound(node_id))?;
+        let layout = self
+            .layout
+            .get_mut(node_id)
+            .ok_or(Error::NodeNotFound(node_id))?;
+        Ok((data, layout))
     }
 
     pub fn create_node(
@@ -63,26 +82,183 @@ impl NodeArena {
         parent: Option<NodeId>,
         layout_style: impl Into<LayoutKind>,
     ) -> Result<NodeId> {
-        let key = props.key;
-
-        let id = self.nodes.insert(Node {
+        let id = self.data.insert(NodeData {
             kind,
             props,
-            children: Vec::new(),
-            parent,
-            dirty: DirtyFlags::ALL,
-            layout: NodeLayout::new(layout_style.into()),
+            dirty: DirtyFlags::all(),
         });
 
-        if let Some(key) = key {
-            self.node_keys.insert(key, id);
-        }
+        self.dirty_counter.increment(DirtyFlags::all());
+
+        self.parent.insert(id, parent);
+        self.children.insert(id, Vec::new());
 
         if let Some(parent_id) = parent {
-            self.get_node_mut(parent_id)?.children.push(id);
-            self.mark_dirty(parent_id, DirtyFlags::LAYOUT);
+            self.children
+                .get_mut(parent_id)
+                .ok_or(Error::NodeNotFound(parent_id))?
+                .push(id);
         }
 
+        self.layout.insert(id, NodeLayout::new(layout_style.into()));
+
         Ok(id)
+    }
+
+    pub fn delete_node(&mut self, node_id: NodeId) -> Result<()> {
+        if let Some(&Some(parent_id)) = self.parent.get(node_id) {
+            if let Some(siblings) = self.children.get_mut(parent_id) {
+                siblings.retain(|&id| id != node_id);
+            }
+        }
+
+        if let Some(node_data) = self.data.get(node_id) {
+            if !node_data.dirty.is_empty() {
+                self.dirty_counter.decrement(node_data.dirty);
+            }
+        }
+
+        self.data
+            .remove(node_id)
+            .ok_or(Error::NodeNotFound(node_id))?;
+        self.layout.remove(node_id);
+        self.children.remove(node_id);
+        self.parent.remove(node_id);
+
+        Ok(())
+    }
+
+    pub fn delete_subtree(&mut self, node_id: NodeId) -> Result<()> {
+        let children: Vec<NodeId> = self
+            .children
+            .get(node_id)
+            .map(|v| v.clone())
+            .unwrap_or_default();
+
+        for child_id in children {
+            self.delete_subtree(child_id)?;
+        }
+        self.delete_node(node_id)
+    }
+
+    pub fn traverse<T: Copy>(
+        &self,
+        node_id: NodeId,
+        callback: &mut impl FnMut(NodeId, &NodeData, &NodeLayout, T) -> T,
+        data: T,
+    ) {
+        fn traverse_inner<T: Copy>(
+            data: &slotmap::SlotMap<NodeId, NodeData>,
+            children: &slotmap::SecondaryMap<NodeId, Vec<NodeId>>,
+            layout: &slotmap::SecondaryMap<NodeId, NodeLayout>,
+            node_id: NodeId,
+            callback: &mut impl FnMut(NodeId, &NodeData, &NodeLayout, T) -> T,
+            acc: T,
+        ) {
+            let result = callback(node_id, &data[node_id], &layout[node_id], acc);
+            for &child_id in &children[node_id] {
+                traverse_inner(data, children, layout, child_id, callback, result);
+            }
+        }
+
+        traverse_inner(
+            &self.data,
+            &self.children,
+            &self.layout,
+            node_id,
+            callback,
+            data,
+        );
+    }
+
+    pub fn traverse_mut<T: Copy>(
+        &mut self,
+        node_id: NodeId,
+        callback: &mut impl FnMut(NodeId, &mut NodeData, &mut NodeLayout, T) -> T,
+        data: T,
+    ) {
+        fn traverse_inner_mut<T: Copy>(
+            data: &mut slotmap::SlotMap<NodeId, NodeData>,
+            children: &slotmap::SecondaryMap<NodeId, Vec<NodeId>>,
+            layout: &mut slotmap::SecondaryMap<NodeId, NodeLayout>,
+            node_id: NodeId,
+            callback: &mut impl FnMut(NodeId, &mut NodeData, &mut NodeLayout, T) -> T,
+            acc: T,
+        ) {
+            let result = callback(node_id, &mut data[node_id], &mut layout[node_id], acc);
+            for &child_id in &children[node_id] {
+                traverse_inner_mut(data, children, layout, child_id, callback, result);
+            }
+        }
+
+        traverse_inner_mut(
+            &mut self.data,
+            &self.children,
+            &mut self.layout,
+            node_id,
+            callback,
+            data,
+        );
+    }
+
+    pub fn mark_dirty(&mut self, node_id: NodeId, flags: DirtyFlags) -> Result<()> {
+        let node_data = self
+            .data
+            .get_mut(node_id)
+            .ok_or(Error::NodeNotFound(node_id))?;
+
+        let new_dirty = node_data.dirty | flags;
+
+        if new_dirty == node_data.dirty {
+            return Ok(());
+        }
+
+        node_data.dirty = new_dirty;
+
+        self.dirty_counter.increment(flags);
+
+        if flags.contains(DirtyFlags::LAYOUT) {
+            if let Ok(layout) = self
+                .layout
+                .get_mut(node_id)
+                .ok_or(Error::NodeNotFound(node_id))
+            {
+                layout.cache.clear();
+            }
+
+            let parent = self
+                .parent
+                .get(node_id)
+                .ok_or(Error::NodeNotFound(node_id))?;
+
+            if let Some(parent_id) = parent {
+                self.mark_dirty(*parent_id, flags)?;
+            }
+        }
+
+        Ok(())
+    }
+
+    pub fn mark_clean(&mut self, node_id: NodeId, flags: DirtyFlags) -> Result<()> {
+        let node_data = self
+            .data
+            .get_mut(node_id)
+            .ok_or(Error::NodeNotFound(node_id))?;
+
+        let new_dirty = node_data.dirty - flags;
+
+        if new_dirty == node_data.dirty {
+            return Ok(());
+        }
+
+        node_data.dirty = new_dirty;
+
+        self.dirty_counter.decrement(flags);
+
+        Ok(())
+    }
+
+    pub fn is_any_dirty(&self, flags: DirtyFlags) -> bool {
+        self.dirty_counter.is_any_dirty(flags)
     }
 }

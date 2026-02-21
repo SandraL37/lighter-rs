@@ -1,55 +1,84 @@
-use crate::core::{
-    arena::NodeArena,
-    node::{Node, NodeId},
-};
-
 bitflags::bitflags! {
     #[derive(Debug, Copy, Clone, PartialEq, Eq)]
     pub struct DirtyFlags: u8 {
         const LAYOUT = 1 << 0;
-        const PAINT = 1 << 1;
-        const ALL = Self::LAYOUT.bits() | Self::PAINT.bits();
+        const PAINT  = 1 << 1;
     }
 }
 
-impl Node {
-    pub(crate) fn mark_dirty(&mut self, flags: DirtyFlags) {
-        self.dirty.insert(flags);
+#[derive(Debug, Default)]
+pub struct DirtyCounter {
+    counts: [usize; 2],
+}
 
-        match flags {
-            DirtyFlags::LAYOUT => {
-                self.layout.cache.clear();
-            }
-            DirtyFlags::PAINT => {}
-            _ => {}
+impl DirtyCounter {
+    #[inline]
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    #[inline]
+    pub fn increment(&mut self, flags: DirtyFlags) {
+        let mut bits = flags.bits();
+
+        while bits != 0 {
+            let idx = bits.trailing_zeros() as usize;
+            self.counts[idx] += 1;
+            bits &= bits - 1;
         }
     }
 
-    pub(crate) fn mark_clean(&mut self, flags: DirtyFlags) {
-        self.dirty.remove(flags);
+    #[inline]
+    pub fn decrement(&mut self, flags: DirtyFlags) {
+        let mut bits = flags.bits();
+
+        while bits != 0 {
+            let idx = bits.trailing_zeros() as usize;
+
+            debug_assert!(
+                self.counts[idx] > 0,
+                "DirtyCounter underflow on flag index {}",
+                idx
+            );
+
+            self.counts[idx] -= 1;
+
+            bits &= bits - 1;
+        }
     }
 
-    pub(crate) fn has_dirty_flags(&self, flags: DirtyFlags) -> bool {
-        self.dirty.contains(flags)
+    #[inline]
+    pub fn is_any_dirty(&self, flags: DirtyFlags) -> bool {
+        let mut bits = flags.bits();
+
+        while bits != 0 {
+            let idx = bits.trailing_zeros() as usize;
+
+            if self.counts[idx] > 0 {
+                return true;
+            }
+
+            bits &= bits - 1;
+        }
+
+        false
     }
 }
 
-impl NodeArena {
-    pub(crate) fn mark_dirty(&mut self, node_id: NodeId, flags: DirtyFlags) {
-        let Ok(node) = self.get_node_mut(node_id) else {
-            return;
-        };
+#[cfg(test)]
+mod tests {
+    use super::*;
 
-        if node.has_dirty_flags(flags) {
-            return;
-        }
+    #[test]
+    fn test_dirty_counter() {
+        let mut counter = DirtyCounter::new();
 
-        node.mark_dirty(flags);
+        counter.increment(DirtyFlags::LAYOUT);
+        assert!(counter.is_any_dirty(DirtyFlags::LAYOUT));
+        assert!(counter.is_any_dirty(DirtyFlags::LAYOUT | DirtyFlags::PAINT));
+        assert!(!counter.is_any_dirty(DirtyFlags::PAINT));
 
-        if flags.contains(DirtyFlags::LAYOUT) {
-            if let Some(parent_id) = node.parent {
-                self.mark_dirty(parent_id, DirtyFlags::LAYOUT);
-            }
-        }
+        counter.decrement(DirtyFlags::LAYOUT);
+        assert!(!counter.is_any_dirty(DirtyFlags::LAYOUT));
     }
 }

@@ -1,116 +1,52 @@
 use crate::{
     core::{
         arena::NodeArena,
+        cx::{Cx, DeferredBinding, ReactivePropsExt},
+        dirty::DirtyFlags,
         error::*,
-        layout::{
-            AlignItems, ContainerStyle, DefiniteDimension, Dimension, FlexDirection, FlexWrap,
-            JustifyContent, Margin, Padding,
-        },
+        layout::{ContainerStyle, ContainerStylePropsExt},
         node::{NodeId, NodeKind, NodeProps, NodePropsExt},
+        signal::Reactive,
         style::Color,
     },
-    elements::{Element, ElementBuild, ElementKind},
+    elements::Element,
 };
 
 #[derive(Debug)]
 pub struct Div {
     node_props: NodeProps,
-    props: DivProps,
-    layout_style: ContainerStyle,
-    children: Vec<ElementKind>,
+    layout_props: ContainerStyle,
+    div_props: DivProps,
+    children: Vec<Box<dyn Element>>,
+    deferred_bindings: Vec<DeferredBinding>,
 }
 
-impl Div {
-    pub fn w(mut self, width: Dimension) -> Self {
-        self.layout_style.size.width = width;
-        self
-    }
+pub trait ChildrenExt: Sized {
+    fn children_mut(&mut self) -> &mut Vec<Box<dyn Element>>;
 
-    pub fn h(mut self, height: Dimension) -> Self {
-        self.layout_style.size.height = height;
-        self
-    }
-
-    pub fn size(mut self, size: Dimension) -> Self {
-        self.layout_style.size.width = size;
-        self.layout_style.size.height = size;
-        self
-    }
-
-    pub fn max_w(mut self, max_width: Dimension) -> Self {
-        self.layout_style.max_size.width = max_width;
-        self
-    }
-
-    pub fn max_h(mut self, max_height: Dimension) -> Self {
-        self.layout_style.max_size.height = max_height;
-        self
-    }
-
-    pub fn max_size(mut self, max_width: Dimension, max_height: Dimension) -> Self {
-        self.layout_style.max_size.width = max_width;
-        self.layout_style.max_size.height = max_height;
-        self
-    }
-
-    pub fn p(mut self, padding: Padding) -> Self {
-        self.layout_style.padding = padding;
-        self
-    }
-
-    pub fn m(mut self, margin: Margin) -> Self {
-        self.layout_style.margin = margin;
-        self
-    }
-
-    pub fn align(mut self, align_items: AlignItems) -> Self {
-        self.layout_style.align_items = align_items;
-        self
-    }
-
-    pub fn justify(mut self, justify_content: JustifyContent) -> Self {
-        self.layout_style.justify_content = justify_content;
-        self
-    }
-
-    pub fn gap_x(mut self, gap: DefiniteDimension) -> Self {
-        self.layout_style.gap.width = gap;
-        self
-    }
-
-    pub fn gap_y(mut self, gap: DefiniteDimension) -> Self {
-        self.layout_style.gap.height = gap;
-        self
-    }
-
-    pub fn gap(mut self, gap: DefiniteDimension) -> Self {
-        self.layout_style.gap.width = gap;
-        self.layout_style.gap.height = gap;
-        self
-    }
-
-    pub fn flex_direction(mut self, direction: FlexDirection) -> Self {
-        self.layout_style.flex_direction = direction;
-        self
-    }
-
-    pub fn flex_wrap(mut self, wrap: FlexWrap) -> Self {
-        self.layout_style.flex_wrap = wrap;
-        self
-    }
-
-    pub fn bg(mut self, color: Color) -> Self {
-        self.props.background_color = color;
-        self
-    }
-
-    pub fn child(mut self, child: impl Element) -> Self {
-        self.children.push(child.into());
+    fn child(mut self, child: impl Element + 'static) -> Self {
+        self.children_mut().push(Box::new(child));
         self
     }
 }
 
-#[derive(Debug, Clone, Copy)]
+pub trait DivPropsExt:
+    ReactivePropsExt + ContainerStylePropsExt + ChildrenExt + NodePropsExt
+{
+    fn div_props_mut(&mut self) -> &mut DivProps;
+
+    fn bg(mut self, color: impl Into<Reactive<Color>>) -> Self {
+        self.bind(
+            color,
+            &mut |div, color| div.div_props_mut().background_color = color,
+            DirtyFlags::PAINT,
+            |node, _, color| node.kind.as_div_mut().background_color = color,
+        );
+        self
+    }
+}
+
+#[derive(Debug)]
 pub struct DivProps {
     pub background_color: Color,
 }
@@ -123,42 +59,68 @@ impl Default for DivProps {
     }
 }
 
-impl Into<ElementKind> for Div {
-    fn into(self) -> ElementKind {
-        ElementKind::Div(self)
-    }
-}
-
-impl ElementBuild for Div {
-    fn build(self, ctx: &mut NodeArena, parent: Option<NodeId>) -> Result<NodeId> {
-        let id = ctx.create_node(
-            NodeKind::Div(self.props),
+impl Element for Div {
+    fn build(
+        self: Box<Self>,
+        arena: &mut NodeArena,
+        cx: &mut Cx,
+        parent: Option<NodeId>,
+    ) -> Result<NodeId> {
+        let id = arena.create_node(
+            NodeKind::Div(self.div_props),
             self.node_props,
             parent,
-            self.layout_style,
+            self.layout_props,
         )?;
 
+        for binding in self.deferred_bindings {
+            (binding.0)(id, cx)
+        }
+
         for child in self.children {
-            child.build(ctx, Some(id))?;
+            child.build(arena, cx, Some(id))?;
         }
 
         Ok(id)
     }
 }
 
-impl Element for Div {}
+impl ReactivePropsExt for Div {
+    fn deferred_bindings(&mut self) -> &mut Vec<DeferredBinding> {
+        &mut self.deferred_bindings
+    }
+}
+
+impl ContainerStylePropsExt for Div {
+    fn container_style_mut(&mut self) -> &mut ContainerStyle {
+        &mut self.layout_props
+    }
+}
 
 impl NodePropsExt for Div {
-    fn props_mut(&mut self) -> &mut NodeProps {
+    fn node_props_mut(&mut self) -> &mut NodeProps {
         &mut self.node_props
+    }
+}
+
+impl DivPropsExt for Div {
+    fn div_props_mut(&mut self) -> &mut DivProps {
+        &mut self.div_props
+    }
+}
+
+impl ChildrenExt for Div {
+    fn children_mut(&mut self) -> &mut Vec<Box<dyn Element>> {
+        &mut self.children
     }
 }
 
 pub fn div() -> Div {
     Div {
         node_props: NodeProps::default(),
-        props: DivProps::default(),
+        layout_props: ContainerStyle::default(),
         children: Vec::new(),
-        layout_style: ContainerStyle::default(),
+        div_props: DivProps::default(),
+        deferred_bindings: Vec::new(),
     }
 }

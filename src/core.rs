@@ -1,5 +1,6 @@
 pub mod arena;
 pub mod build;
+pub mod cx;
 pub mod dirty;
 pub mod engine;
 pub mod error;
@@ -7,5 +8,6 @@ pub mod layout;
 pub mod node;
 pub mod platform;
 pub mod render;
+pub mod signal;
 pub mod style;
 pub mod tree;
