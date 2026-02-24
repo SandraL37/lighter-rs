@@ -29,16 +29,15 @@ impl Color {
 
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct Transform {
-    pub matrix: [[f32; 4]; 4],
+    pub matrix: [f32; 6]
 }
 
 impl Transform {
     pub const IDENTITY: Transform = Transform {
         matrix: [
-            [1.0, 0.0, 0.0, 0.0],
-            [0.0, 1.0, 0.0, 0.0],
-            [0.0, 0.0, 1.0, 0.0],
-            [0.0, 0.0, 0.0, 1.0],
+            1.0, 0.0, // m11, m12
+            0.0, 1.0, // m21, m22
+            0.0, 0.0, // dx, dy
         ],
     };
 }

@@ -2,7 +2,6 @@ use slotmap::Key;
 use taffy::{compute_flexbox_layout, compute_leaf_layout};
 
 use crate::core::{
-    arena::NodeArena,
     dirty::DirtyFlags,
     layout::*,
     node::{NodeId, NodeKind},
@@ -13,9 +12,13 @@ pub type ComputedLayout = taffy::Layout;
 pub type UnroundedLayout = taffy::Layout;
 pub type LayoutCache = taffy::Cache;
 
-pub fn compute_layout(arena: &mut NodeArena, root: NodeId, available_space: Size<AvailableSpace>) {
-    taffy::compute_root_layout(arena, root.into(), available_space.into());
-    taffy::round_layout(arena, root.into());
+pub fn compute_layout(
+    layout_context: &mut LayoutContext,
+    root: NodeId,
+    available_space: Size<AvailableSpace>,
+) {
+    taffy::compute_root_layout(layout_context, root.into(), available_space.into());
+    taffy::round_layout(layout_context, root.into());
 }
 
 impl From<NodeId> for taffy::NodeId {
@@ -41,48 +44,43 @@ impl Iterator for ChildIter<'_> {
 const NON_EXISTENT_NODE_ID: &str =
     "Taffy Layout Engine unexpected error: impossible to get a node because it does not exist.";
 
-impl taffy::TraversePartialTree for NodeArena {
-    type ChildIter<'a> = ChildIter<'a>;
+impl<'a> taffy::TraversePartialTree for LayoutContext<'a> {
+    type ChildIter<'b>
+        = ChildIter<'b>
+    where
+        Self: 'b;
 
     fn child_ids(&self, node_id: taffy::NodeId) -> Self::ChildIter<'_> {
-        let node = self
-            .get_children(node_id.into())
-            .expect(NON_EXISTENT_NODE_ID);
+        let node = self.get_children(node_id);
 
         ChildIter(node.iter())
     }
 
     fn child_count(&self, parent_node_id: taffy::NodeId) -> usize {
-        self.get_children(parent_node_id.into())
-            .expect(NON_EXISTENT_NODE_ID)
-            .len()
+        self.get_children(parent_node_id).len()
     }
 
     fn get_child_id(&self, parent_node_id: taffy::NodeId, child_index: usize) -> taffy::NodeId {
-        self.get_children(parent_node_id.into())
-            .expect(NON_EXISTENT_NODE_ID)[child_index]
-            .into()
+        self.get_child_id(parent_node_id, child_index).into()
     }
 }
 
-impl taffy::TraverseTree for NodeArena {}
+impl<'a> taffy::TraverseTree for LayoutContext<'a> {}
 
-impl taffy::LayoutPartialTree for NodeArena {
+impl<'a> taffy::LayoutPartialTree for LayoutContext<'a> {
     type CustomIdent = String;
 
-    type CoreContainerStyle<'a> = &'a taffy::Style;
+    type CoreContainerStyle<'b>
+        = &'b taffy::Style
+    where
+        Self: 'b;
 
     fn get_core_container_style(&self, node_id: taffy::NodeId) -> Self::CoreContainerStyle<'_> {
-        &self
-            .get_layout(node_id.into())
-            .expect(NON_EXISTENT_NODE_ID)
-            .style
+        &self.get_layout(node_id).style
     }
 
     fn set_unrounded_layout(&mut self, node_id: taffy::NodeId, layout: &taffy::Layout) {
-        self.get_layout_mut(node_id.into())
-            .expect(NON_EXISTENT_NODE_ID)
-            .unrounded = *layout;
+        self.get_layout_mut(node_id).unrounded = *layout;
     }
 
     fn compute_child_layout(
@@ -90,38 +88,35 @@ impl taffy::LayoutPartialTree for NodeArena {
         node_id: taffy::NodeId,
         inputs: taffy::LayoutInput,
     ) -> taffy::LayoutOutput {
-        taffy::compute_cached_layout(self, node_id, inputs, |tree, node_id, inputs| {
-            tree.mark_clean(node_id.into(), DirtyFlags::LAYOUT)
+        taffy::compute_cached_layout(self, node_id, inputs, |layout_context, node_id, inputs| {
+            layout_context
+                .arena
+                .mark_clean(node_id.into(), DirtyFlags::LAYOUT)
                 .expect(NON_EXISTENT_NODE_ID);
 
-            let node_data = tree.get_data(node_id.into()).expect(NON_EXISTENT_NODE_ID);
-            let layout = tree.get_layout(node_id.into()).expect(NON_EXISTENT_NODE_ID);
+            let node_kind = layout_context.get_data(node_id).kind.clone(); // TODO: remove clone in some way
+            let style = layout_context.get_layout(node_id).style.clone();
 
-            match &node_data.kind {
-                NodeKind::Div(_) => compute_flexbox_layout(tree, node_id, inputs),
-                NodeKind::Text(text_props) => {
-                    compute_leaf_layout(
-                        inputs,
-                        &layout.style,
-                        |_val, _basis| 0.0,
-                        |_known_dimensions, _available_space| {
-                            taffy::Size::length(text_props.content.len() as f32 * 10.0) // Placeholder text size
-                        },
-                    )
-                }
+            match node_kind {
+                NodeKind::Div(_) => compute_flexbox_layout(layout_context, node_id, inputs),
+                NodeKind::Text(text_props) => compute_leaf_layout(
+                    inputs,
+                    &style,
+                    |_val, _basis| 0.0,
+                    |_known_dimensions, available_space| {
+                        layout_context
+                            .renderer
+                            .measure_text(&text_props, available_space.width.into())
+                            .expect("Layout engine error while measuring text") // TODO: handle error
+                            .into()
+                    },
+                ),
             }
         })
     }
 }
 
-impl taffy::CacheTree for NodeArena {
-    fn cache_clear(&mut self, node_id: taffy::NodeId) {
-        self.get_layout_mut(node_id.into())
-            .expect(NON_EXISTENT_NODE_ID)
-            .cache
-            .clear();
-    }
-
+impl<'a> taffy::CacheTree for LayoutContext<'a> {
     fn cache_get(
         &self,
         node_id: taffy::NodeId,
@@ -129,8 +124,7 @@ impl taffy::CacheTree for NodeArena {
         available_space: taffy::Size<taffy::AvailableSpace>,
         run_mode: taffy::RunMode,
     ) -> Option<taffy::LayoutOutput> {
-        self.get_layout(node_id.into())
-            .expect(NON_EXISTENT_NODE_ID)
+        self.get_layout(node_id)
             .cache
             .get(known_dimensions, available_space, run_mode)
     }
@@ -143,66 +137,69 @@ impl taffy::CacheTree for NodeArena {
         run_mode: taffy::RunMode,
         layout_output: taffy::LayoutOutput,
     ) {
-        self.get_layout_mut(node_id.into())
-            .expect(NON_EXISTENT_NODE_ID)
-            .cache
-            .store(known_dimensions, available_space, run_mode, layout_output);
+        self.get_layout_mut(node_id).cache.store(
+            known_dimensions,
+            available_space,
+            run_mode,
+            layout_output,
+        );
+    }
+
+    fn cache_clear(&mut self, node_id: taffy::NodeId) {
+        self.get_layout_mut(node_id).cache.clear();
     }
 }
 
-impl taffy::RoundTree for NodeArena {
+impl<'a> taffy::RoundTree for LayoutContext<'a> {
     fn get_unrounded_layout(&self, node_id: taffy::NodeId) -> taffy::Layout {
-        self.get_layout(node_id.into())
-            .expect(NON_EXISTENT_NODE_ID)
-            .unrounded
+        self.get_layout(node_id).unrounded
     }
 
     fn set_final_layout(&mut self, node_id: taffy::NodeId, layout: &taffy::Layout) {
-        self.get_layout_mut(node_id.into())
-            .expect(NON_EXISTENT_NODE_ID)
-            .computed = *layout;
+        self.get_layout_mut(node_id).computed = *layout;
     }
 }
 
-impl taffy::PrintTree for NodeArena {
-    fn get_debug_label(&self, node_id: taffy::NodeId) -> &'static str {
-        // TODO: needs rework
-        match self
-            .get_data(node_id.into())
-            .expect(NON_EXISTENT_NODE_ID)
-            .kind
-        {
-            NodeKind::Div(_) => "Div",
-            NodeKind::Text(_) => "Text",
-        }
-    }
+// TODO: implement this, choose between Tree, NodeArena, LayoutContext, Engine
+// impl taffy::PrintTree for NodeArena {
+//     fn get_debug_label(&self, node_id: taffy::NodeId) -> &'static str {
+//         // TODO: needs rework
+//         match self
+//             .get_data(node_id.into())
+//             .expect(NON_EXISTENT_NODE_ID)
+//             .kind
+//         {
+//             NodeKind::Div(_) => "Div",
+//             NodeKind::Text(_) => "Text",
+//         }
+//     }
 
-    fn get_final_layout(&self, node_id: taffy::NodeId) -> taffy::Layout {
-        self.get_layout(node_id.into())
-            .expect(NON_EXISTENT_NODE_ID)
-            .computed
-    }
-}
+//     fn get_final_layout(&self, node_id: taffy::NodeId) -> taffy::Layout {
+//         self.get_layout(node_id.into())
+//             .expect(NON_EXISTENT_NODE_ID)
+//             .computed
+//     }
+// }
 
-impl taffy::LayoutFlexboxContainer for NodeArena {
-    type FlexboxContainerStyle<'a> = &'a taffy::Style;
-    type FlexboxItemStyle<'a> = &'a taffy::Style;
+impl<'a> taffy::LayoutFlexboxContainer for LayoutContext<'a> {
+    type FlexboxContainerStyle<'b>
+        = &'b taffy::Style
+    where
+        Self: 'b;
+    type FlexboxItemStyle<'b>
+        = &'b taffy::Style
+    where
+        Self: 'b;
 
     fn get_flexbox_container_style(
         &self,
         node_id: taffy::NodeId,
     ) -> Self::FlexboxContainerStyle<'_> {
-        &self
-            .get_layout(node_id.into())
-            .expect(NON_EXISTENT_NODE_ID)
-            .style
+        &self.get_layout(node_id).style
     }
 
     fn get_flexbox_child_style(&self, child_node_id: taffy::NodeId) -> Self::FlexboxItemStyle<'_> {
-        &self
-            .get_layout(child_node_id.into())
-            .expect(NON_EXISTENT_NODE_ID)
-            .style
+        &self.get_layout(child_node_id).style
     }
 }
 
@@ -242,11 +239,22 @@ impl From<DefiniteDimensionAuto> for taffy::LengthPercentageAuto {
 
 impl From<AvailableSpace> for taffy::AvailableSpace {
     #[inline(always)]
-    fn from(space: AvailableSpace) -> Self {
-        match space {
+    fn from(value: AvailableSpace) -> Self {
+        match value {
             AvailableSpace::Definite(pixels) => taffy::AvailableSpace::Definite(pixels),
             AvailableSpace::MinContent => taffy::AvailableSpace::MinContent,
             AvailableSpace::MaxContent => taffy::AvailableSpace::MaxContent,
+        }
+    }
+}
+
+impl From<taffy::AvailableSpace> for AvailableSpace {
+    #[inline(always)]
+    fn from(value: taffy::AvailableSpace) -> Self {
+        match value {
+            taffy::AvailableSpace::Definite(pixels) => AvailableSpace::Definite(pixels),
+            taffy::AvailableSpace::MinContent => AvailableSpace::MinContent,
+            taffy::AvailableSpace::MaxContent => AvailableSpace::MaxContent,
         }
     }
 }

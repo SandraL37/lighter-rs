@@ -2,7 +2,7 @@ use crate::core::{
     cx::{Cx, UpdateQueue},
     dirty::DirtyFlags,
     error::*,
-    layout::{AvailableSpace, Point, Rect, Size},
+    layout::{AvailableSpace, LayoutContext, Point, Rect, Size, compute_layout},
     node::NodeKind,
     render::{RenderCommand, Renderer},
     style::Transform,
@@ -12,7 +12,7 @@ use crate::core::{
 pub struct Engine<R: Renderer> {
     tree: Tree,
     renderer: R,
-    size: Size<u32>,
+    size: Size<usize>,
     updates: UpdateQueue,
 }
 
@@ -25,12 +25,6 @@ impl<R: Renderer> Engine<R> {
             size,
             updates: cx.updates,
         }
-    }
-
-    pub fn resize(&mut self, size: Size<u32>) -> Result<()> {
-        self.renderer.resize(size)?;
-        self.size = size;
-        Ok(())
     }
 
     fn build_render_list(
@@ -71,9 +65,7 @@ impl<R: Renderer> Engine<R> {
                         },
                         NodeKind::Text(props) => RenderCommand::Text {
                             bounds,
-                            content: props.content.clone(), // Arc<str> clone = refcount bump
-                            font_size: props.font_size,
-                            color: props.color,
+                            props: props.clone(), // TODO: is there a better way
                             opacity: node.props.opacity,
                             transform: node.props.transform.unwrap_or(Transform::IDENTITY),
                             z_index: node.props.z_index,
@@ -114,10 +106,21 @@ impl<R: Renderer> Engine<R> {
         let is_paint_dirty = self.tree.arena().is_any_dirty(DirtyFlags::PAINT);
 
         if is_layout_dirty {
-            self.tree.compute_layout(Size::wh(
-                AvailableSpace::Definite(self.size.width as f32),
-                AvailableSpace::Definite(self.size.height as f32),
-            ));
+            let root = self.tree.root(); // TODO: Consider how to manage tree and arena, should engine own arena or tree?
+
+            let mut layout_context = LayoutContext {
+                arena: self.tree.arena_mut(),
+                renderer: &mut self.renderer,
+            };
+
+            compute_layout(
+                &mut layout_context,
+                root,
+                Size::wh(
+                    AvailableSpace::Definite(self.size.width as f32),
+                    AvailableSpace::Definite(self.size.height as f32),
+                ),
+            );
         }
 
         if is_layout_dirty || is_paint_dirty {

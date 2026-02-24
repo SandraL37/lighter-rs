@@ -62,7 +62,7 @@ impl<T: Clone> ReadSignal<T> {
             let new_val = f(val.clone());
             let mut inner = mapped_clone.0.borrow_mut();
             inner.value = new_val;
-            let new_val_ref = &inner.value.clone();
+            let new_val_ref = &inner.value;
             for sub in &inner.subscribers {
                 sub(new_val_ref);
             }

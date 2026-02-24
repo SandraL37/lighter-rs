@@ -1,12 +1,13 @@
-use std::sync::Arc;
-
-use crate::core::{
-    error::*,
-    layout::{Rect, Size},
-    style::{Color, Transform},
+use crate::{
+    core::{
+        error::*,
+        layout::{AvailableSpace, Rect, Size},
+        style::{Color, Transform},
+    },
+    elements::text::TextProps,
 };
 
-// pub mod piet;
+pub mod piet;
 pub mod tinyskia;
 
 #[derive(Debug)]
@@ -21,9 +22,7 @@ pub enum RenderCommand {
 
     Text {
         bounds: Rect<f32>,
-        content: Arc<str>,
-        color: Color,
-        font_size: f32,
+        props: TextProps,
         opacity: f32,
         transform: Transform,
         z_index: i32,
@@ -41,6 +40,10 @@ impl RenderCommand {
 
 pub trait Renderer {
     fn render(&mut self, commands: &[RenderCommand]) -> Result<()>;
-    fn resize(&mut self, size: Size<u32>) -> Result<()>;
-    fn get_size(&self) -> Size<u32>;
+    fn get_size(&self) -> Size<usize>;
+    fn measure_text(
+        &mut self,
+        text_props: &TextProps,
+        available_width: AvailableSpace,
+    ) -> Result<Size<f32>>;
 }

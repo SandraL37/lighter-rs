@@ -3,10 +3,50 @@ mod engine;
 pub use engine::{ComputedLayout, LayoutCache, LayoutStyle, UnroundedLayout, compute_layout};
 
 use crate::core::{
+    arena::NodeArena,
     cx::ReactivePropsExt,
     dirty::DirtyFlags,
+    node::{NodeData, NodeId},
+    render::Renderer,
     signal::{Reactive, ReadSignal},
 };
+
+pub struct LayoutContext<'a> {
+    pub arena: &'a mut NodeArena,
+    pub renderer: &'a mut dyn Renderer,
+}
+
+impl<'a> LayoutContext<'a> {
+    pub fn get_children(&self, node_id: impl Into<NodeId>) -> &Vec<NodeId> {
+        self.arena.get_children(node_id.into()).expect(
+            "Layout engine error: Malformed NodeArena. Tried to access children of a dropped node.",
+        )
+    }
+
+    pub fn get_child_id(&self, parent_node_id: impl Into<NodeId>, child_index: usize) -> NodeId {
+        *self.get_children(parent_node_id).get(child_index).expect(
+            "Layout engine error: Malformed NodeArena. Tried to access a dropped child of a node.",
+        )
+    }
+
+    pub fn get_layout(&self, node_id: impl Into<NodeId>) -> &NodeLayout {
+        self.arena.get_layout(node_id.into()).expect(
+            "Layout engine error: Malformed NodeArena. Tried to access the layout of a dropped node.",
+        )
+    }
+
+    pub fn get_layout_mut(&mut self, node_id: impl Into<NodeId>) -> &mut NodeLayout {
+        self.arena.get_layout_mut(node_id.into()).expect(
+            "Layout engine error: Malformed NodeArena. Tried to access the layout of a dropped node.",
+        )
+    }
+
+    pub fn get_data(&self, node_id: impl Into<NodeId>) -> &NodeData {
+        self.arena.get_data(node_id.into()).expect(
+            "Layout engine error: Malformed NodeArena. Tried to access the data of a dropped node.",
+        )
+    }
+}
 
 #[derive(Debug, Default, Clone)]
 pub struct NodeLayout {

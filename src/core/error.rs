@@ -8,8 +8,8 @@ pub enum Error {
     NoRootNode,
     #[error("TinySkia Renderer error: {0}")]
     TinySkiaRendererError(String),
-    #[error("TinySkia Renderer error: {0}")]
-    RendererError(String),
+    #[error("Piet Renderer error: {0}")]
+    PietRendererError(piet_common::Error),
 }
 
 pub type Result<T> = std::result::Result<T, Error>;

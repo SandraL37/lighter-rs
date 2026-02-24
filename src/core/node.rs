@@ -14,7 +14,7 @@ pub struct NodeData {
     pub dirty: DirtyFlags,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub enum NodeKind {
     Div(DivProps),
     Text(TextProps),

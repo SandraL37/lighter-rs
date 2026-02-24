@@ -1,238 +1,159 @@
-use piet_common::{
-    BitmapTarget, Color as PietColor, Device, ImageFormat, RenderContext, Text, TextAttribute,
-    TextLayoutBuilder,
-    kurbo::{Affine, Rect as PietRect},
+use std::f64;
+
+use piet_common::{RenderContext, Text, TextLayout, TextLayoutBuilder};
+
+use crate::{
+    core::{
+        error::*,
+        layout::{AvailableSpace, Point, Size},
+        render::{RenderCommand, Renderer},
+        style::Color,
+    },
+    elements::text::{FontWeight, TextProps},
 };
 
-use crate::core::{
-    error::*,
-    layout::{Rect, Size},
-    style::{Color, Transform},
-};
-
-use super::{RenderCommand, Renderer};
-
-/// A software renderer backed by piet-common's bitmap target.
-///
-/// # Self-referential struct — safety contract
-///
-/// `BitmapTarget<'device>` holds a reference into the `Device` that created it.
-/// We store both in the same struct, which Rust does not support natively.
-///
-/// Our solution:
-///   1. `device` is heap-allocated behind a `Box` and **never moved** after
-///      `bitmap` is created.  `Box<T>` guarantees a stable heap address.
-///   2. We lie to the compiler about the bitmap's lifetime, using `'static`.
-///      The real invariant is upheld manually: **`bitmap` is always dropped
-///      before `device`**, which Rust guarantees because struct fields are
-///      dropped in declaration order (top to bottom).
-///   3. No code path moves `device` while `bitmap` is live.  The only
-///      mutation is `resize()`, which drops the old bitmap first (by
-///      overwriting `self.bitmap`), then never touches `device`.
-///
-/// This is the same pattern used by `ouroboros` / `self_cell` internally,
-/// made explicit here to avoid the extra dependency.
 pub struct PietRenderer {
-    // IMPORTANT: declaration order matters for drop order.
-    // `bitmap` must be declared BEFORE `device` so it is dropped first.
-    //
-    // Rust drops struct fields in declaration order (first → last).
-    // If device were declared first, it would drop first, leaving bitmap
-    // with a dangling reference during its own drop — use-after-free.
-    bitmap: BitmapTarget<'static>, // 'static is a lie; see safety contract above
-    device: Box<Device>,           // never moved after bitmap is created
-    size: Size<u32>,
+    device: piet_common::Device,
+    size: Size<usize>,
+    output: Option<String>,
+}
+
+impl From<piet_common::Error> for Error {
+    fn from(value: piet_common::Error) -> Self {
+        return Error::PietRendererError(value);
+    }
 }
 
 impl PietRenderer {
-    pub fn new(size: Size<u32>) -> Result<Self> {
-        // Heap-allocate the Device so it has a stable address.
-        let mut device = Box::new(
-            Device::new().map_err(|_| Error::RendererError("Failed to create device".into()))?,
-        );
-
-        // Create the bitmap, borrowing from the heap-allocated device.
-        // SAFETY: We extend the lifetime to 'static here. The actual lifetime
-        // is "as long as `device` lives and doesn't move", which we guarantee
-        // by (a) storing device in a Box on the heap, (b) never moving it,
-        // and (c) ensuring bitmap is dropped before device via field order.
-        let bitmap: BitmapTarget<'static> = unsafe {
-            let device_ref: &'static mut Device = &mut *(device.as_mut() as *mut Device);
-            device_ref
-                .bitmap_target(size.width as usize, size.height as usize, 1.0)
-                .map_err(|_| Error::RendererError("Failed to create bitmap target".into()))?
-        };
-
+    pub fn new(size: Size<usize>) -> Result<Self> {
+        let device = piet_common::Device::new()?;
         Ok(Self {
-            bitmap,
             device,
             size,
+            output: None,
         })
     }
 
-    // ── Helpers ───────────────────────────────────────────────────────────────
-
-    /// Convert a `Color` (0–255 channels, 0.0–1.0 alpha) to piet's RGBA.
-    ///
-    /// Piet expects all channels in 0.0–1.0. We divide r/g/b by 255.
-    fn color_with_opacity(color: Color, opacity: f32) -> PietColor {
-        PietColor::rgba(
-            color.r as f64,
-            color.g as f64,
-            color.b as f64,
-            (color.a * opacity) as f64,
-        )
-    }
-
-    fn rect_to_piet(rect: Rect<f32>) -> PietRect {
-        PietRect::new(
-            rect.location.x as f64,
-            rect.location.y as f64,
-            (rect.location.x + rect.size.width) as f64,
-            (rect.location.y + rect.size.height) as f64,
-        )
-    }
-
-    /// Convert a 4×4 column-major `Transform` matrix to piet's 2D `Affine`.
-    ///
-    /// We extract the top-left 2×2 rotation/scale block and the translation
-    /// column.  The Z and W rows/columns are ignored (this is a 2D renderer).
-    ///
-    /// Matrix layout assumed (column-major, matching typical GPU convention):
-    /// ```text
-    /// [ m[0][0]  m[1][0]  0  m[3][0] ]   [ a  c  0  tx ]
-    /// [ m[0][1]  m[1][1]  0  m[3][1] ] = [ b  d  0  ty ]
-    /// [    0        0     1     0    ]   [ 0  0  1   0 ]
-    /// [    0        0     0     1    ]   [ 0  0  0   1 ]
-    /// ```
-    fn transform_to_affine(transform: &Transform) -> Affine {
-        let m = &transform.matrix;
-        Affine::new([
-            m[0][0] as f64, // a — x scale / cos(θ)
-            m[0][1] as f64, // b — y shear / sin(θ)
-            m[1][0] as f64, // c — x shear / -sin(θ)
-            m[1][1] as f64, // d — y scale / cos(θ)
-            m[3][0] as f64, // tx — x translation
-            m[3][1] as f64, // ty — y translation
-        ])
-    }
-
-    /// Save the current bitmap to a PNG file.
-    pub fn save_png(&mut self, path: &str) -> Result<()> {
-        let image_buf = self
-            .bitmap
-            .to_image_buf(ImageFormat::RgbaPremul)
-            .map_err(|e| {
-                Error::RendererError(format!("Failed to get image buffer for '{}': {}", path, e))
-            })?;
-
-        let width = self.size.width;
-        let height = self.size.height;
-        let raw = image_buf.raw_pixels();
-
-        image::save_buffer(path, raw, width, height, image::ColorType::Rgba8)
-            .map_err(|e| Error::RendererError(format!("Failed to save PNG '{}': {}", path, e)))
+    pub fn set_output(&mut self, path: String) {
+        self.output = Some(path);
     }
 }
 
 impl Renderer for PietRenderer {
     fn render(&mut self, commands: &[RenderCommand]) -> Result<()> {
-        let mut ctx = self.bitmap.render_context();
+        let mut bitmap = self
+            .device
+            .bitmap_target(self.size.width, self.size.height, 1.0)?;
+        {
+            let mut rc = bitmap.render_context();
 
-        // Clear to transparent before drawing.
-        ctx.clear(
-            Some(PietRect::new(
-                0.0,
-                0.0,
-                self.size.width as f64,
-                self.size.height as f64,
-            )),
-            PietColor::TRANSPARENT,
-        );
+            rc.clear(None, piet_common::Color::TRANSPARENT);
 
-        for command in commands {
-            match command {
-                RenderCommand::Rect {
-                    bounds,
-                    color,
-                    opacity,
-                    transform,
-                    ..
-                } => {
-                    ctx.save()
-                        .map_err(|_| Error::RendererError("ctx.save() failed".into()))?;
-
-                    ctx.transform(Self::transform_to_affine(transform));
-                    ctx.fill(
-                        Self::rect_to_piet(*bounds),
-                        &Self::color_with_opacity(*color, *opacity),
-                    );
-
-                    ctx.restore()
-                        .map_err(|_| Error::RendererError("ctx.restore() failed".into()))?;
-                }
-
-                RenderCommand::Text {
-                    bounds,
-                    content,
-                    color,
-                    font_size,
-                    opacity,
-                    transform,
-                    ..
-                } => {
-                    ctx.save()
-                        .map_err(|_| Error::RendererError("ctx.save() failed".into()))?;
-
-                    ctx.transform(Self::transform_to_affine(transform));
-
-                    let layout = ctx
-                        .text()
-                        .new_text_layout(content.to_string())
-                        .default_attribute(TextAttribute::FontSize(*font_size as f64))
-                        .text_color(Self::color_with_opacity(*color, *opacity))
-                        .build()
-                        .map_err(|_| Error::RendererError("Text layout failed".into()))?;
-
-                    ctx.draw_text(
-                        &layout,
-                        (bounds.location.x as f64, bounds.location.y as f64),
-                    );
-
-                    ctx.restore()
-                        .map_err(|_| Error::RendererError("ctx.restore() failed".into()))?;
+            for cmd in commands {
+                match cmd {
+                    RenderCommand::Rect {
+                        bounds,
+                        color,
+                        // TODO: opacity,
+                        ..
+                    } => {
+                        let brush = rc.solid_brush(piet_common::Color::from(*color));
+                        let rect = piet_common::kurbo::Rect::from_origin_size(
+                            bounds.location,
+                            bounds.size,
+                        );
+                        rc.fill(rect, &brush);
+                    }
+                    RenderCommand::Text { bounds, props, .. } => {
+                        let text = rc.text();
+                        let layout = text
+                            .new_text_layout(props.content.clone())
+                            .text_color(props.color.into())
+                            .font(
+                                piet_common::FontFamily::new_unchecked(props.font_family.clone()),
+                                props.font_size as f64,
+                            )
+                            .default_attribute(piet_common::FontWeight::from(props.font_weight))
+                            .build()?;
+                        rc.draw_text(&layout, bounds.location);
+                    }
                 }
             }
+
+            rc.finish()?;
         }
 
-        ctx.finish()
-            .map_err(|_| Error::RendererError("ctx.finish() failed".into()))?;
+        if let Some(output) = &self.output {
+            bitmap.save_to_file(output)?;
+        }
+
 
         Ok(())
     }
 
-    fn resize(&mut self, size: Size<u32>) -> Result<()> {
-        // Create the new bitmap first. If this fails, self is unchanged.
-        // SAFETY: same contract as new(). device is still heap-allocated and
-        // not moved. The old bitmap (self.bitmap) is dropped by the assignment
-        // below BEFORE device could ever be affected.
-        let new_bitmap: BitmapTarget<'static> = unsafe {
-            let device_ref: &'static mut Device = &mut *(self.device.as_mut() as *mut Device);
-            device_ref
-                .bitmap_target(size.width as usize, size.height as usize, 1.0)
-                .map_err(|_| {
-                    Error::RendererError("Resize: failed to create bitmap target".into())
-                })?
-        };
-
-        // Drop old bitmap here, install new one.
-        self.bitmap = new_bitmap;
-        self.size = size;
-
-        Ok(())
-    }
-
-    fn get_size(&self) -> Size<u32> {
+    fn get_size(&self) -> Size<usize> {
         self.size
+    }
+
+    fn measure_text(
+        &mut self,
+        text_props: &TextProps,
+        available_width: AvailableSpace,
+    ) -> Result<Size<f32>> {
+        let mut bitmap = self.device.bitmap_target(1, 1, 1.0)?;
+        let mut rc = bitmap.render_context();
+        let text = rc.text();
+        let layout = text
+            .new_text_layout(text_props.content.clone())
+            .font(
+                piet_common::FontFamily::new_unchecked(text_props.font_family.clone()),
+                text_props.font_size as f64,
+            )
+            .default_attribute(piet_common::FontWeight::from(text_props.font_weight))
+            .max_width({
+                match available_width {
+                    AvailableSpace::Definite(pixels) => pixels as f64,
+                    _ => f64::INFINITY,
+                }
+            })
+            .build()?;
+        let bounds = layout.size();
+        rc.finish()?;
+        Ok(Size::wh(bounds.width as f32, bounds.height as f32))
+    }
+}
+
+impl From<FontWeight> for piet_common::FontWeight {
+    fn from(value: FontWeight) -> Self {
+        piet_common::FontWeight::new(value.0)
+    }
+}
+
+impl From<Color> for piet_common::Color {
+    fn from(color: Color) -> Self {
+        Self::rgba(
+            color.r as f64,
+            color.g as f64,
+            color.b as f64,
+            color.a as f64,
+        )
+    }
+}
+
+impl From<Point<f32>> for piet_common::kurbo::Point {
+    fn from(value: Point<f32>) -> Self {
+        Self {
+            x: value.x as f64,
+            y: value.y as f64,
+        }
+    }
+}
+
+impl From<Size<f32>> for piet_common::kurbo::Size {
+    fn from(value: Size<f32>) -> Self {
+        Self {
+            width: value.width as f64,
+            height: value.height as f64,
+        }
     }
 }

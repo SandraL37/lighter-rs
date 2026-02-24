@@ -46,7 +46,7 @@ pub trait DivPropsExt:
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct DivProps {
     pub background_color: Color,
 }

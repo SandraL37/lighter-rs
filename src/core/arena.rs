@@ -1,10 +1,8 @@
-use crate::{
-    core::layout::{LayoutKind, NodeLayout},
-    core::{
-        dirty::{DirtyCounter, DirtyFlags},
-        error::*,
-        node::{NodeData, NodeId, NodeKind, NodeProps},
-    },
+use crate::core::{
+    dirty::{DirtyCounter, DirtyFlags},
+    error::*,
+    layout::{LayoutKind, NodeLayout},
+    node::{NodeData, NodeId, NodeKind, NodeProps},
 };
 
 #[derive(Debug)]

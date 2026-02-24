@@ -1,76 +1,86 @@
-use std::{
-    sync::atomic::{AtomicU32, Ordering},
-    time::Instant,
-};
+use std::{ sync::atomic::{ AtomicU32, Ordering }, time::Instant };
 
 use lighter::{
     core::{
         engine::Engine,
         layout::{
-            AlignItems, ContainerStylePropsExt, FlexDirection, JustifyContent, Size, percent, px,
+            AlignItems,
+            ContainerStylePropsExt,
+            FlexDirection,
+            JustifyContent,
+            Size,
+            percent,
+            px,
         },
-        render::tinyskia::TinySkiaRenderer,
+        render::piet::PietRenderer,
         signal::signal,
         style::Color,
         tree::Tree,
     },
-    elements::{
-        div::{ChildrenExt, DivPropsExt, div},
-        text::text,
-    },
+    elements::{ div::{ ChildrenExt, DivPropsExt, div }, text::{ FontWeight, TextPropsExt, text } },
 };
 
-fn engine_frame(engine: &mut Engine<TinySkiaRenderer>) {
+fn engine_frame(engine: &mut Engine<PietRenderer>) {
     static FRAME_COUNT: AtomicU32 = AtomicU32::new(0);
     let count = FRAME_COUNT.fetch_add(1, Ordering::Relaxed);
+
+    if !std::fs::exists("output").unwrap() {
+        std::fs::create_dir("output").unwrap();
+    }
+
     let output = format!("output/{}.png", count);
 
     let t0 = Instant::now();
+    engine.renderer().set_output(output);
     engine.frame().unwrap();
     let render_time = t0.elapsed();
 
-    let t1 = Instant::now();
-    engine.renderer().save_png(output.as_str()).unwrap();
-    let save_time = t1.elapsed();
-    println!(
-        "frame: {}, render: {:?}, png save: {:?}",
-        count, render_time, save_time
-    );
+    println!("frame: {}, render + save: {:?}", count, render_time);
 }
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
-    let width = signal(px(100.0));
-    let square = |color: Color| div().size(px(200.0)).bg(color);
-    let fd = signal(FlexDirection::Column);
+    let mut counter = 0;
+    let counter_text = signal(String::from("Not clicked"));
+
+    let mut click = || {
+        counter += 1;
+        counter_text.set(format!("Clicked {} time{}", counter, if counter == 1 { "" } else { "s" }));
+    };
 
     let page = div()
         .size(percent(1.0))
-        .bg(Color::RED)
+        .bg(Color::BLACK)
         .align(AlignItems::Center)
         .justify(JustifyContent::Center)
-        .flex_direction(fd.read())
-        .gap(px(10.0))
-        .child(square(Color::ORANGE).w(width.read()))
-        .child(square(Color::ORANGE))
-        .child(text("ciao"));
+        .flex_direction(FlexDirection::Column)
+        .gap(px(20.0))
+        .child(
+            text("HELLO WORLD!🎉")
+                .font_size(100.0)
+                .color(Color::WHITE)
+                .font_weight(FontWeight::EXTRA_BLACK)
+        )
+        .child(
+            text(counter_text.read())
+                .font_size(30.0)
+                .color(Color::WHITE)
+                .font_weight(FontWeight::NORMAL)
+        );
 
     let (tree, cx) = Tree::build(page)?;
-    let renderer = TinySkiaRenderer::new(600, 600)?;
+    let renderer = PietRenderer::new(Size::wh(1920, 1080))?;
     let mut engine = Engine::new(tree, renderer, cx);
 
     engine_frame(&mut engine);
-
-    width.set(px(200.0));
-
+    click();
     engine_frame(&mut engine);
-
-    fd.set(FlexDirection::Row);
-
+    click();
     engine_frame(&mut engine);
-
-    for _ in 1..10 {
-        engine_frame(&mut engine);
-    }
-
+    click();
+    engine_frame(&mut engine);
+    click();
+    engine_frame(&mut engine);
+    click();
+    engine_frame(&mut engine);
     Ok(())
 }

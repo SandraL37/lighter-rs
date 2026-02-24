@@ -1,5 +1,3 @@
-use std::sync::Arc;
-
 use crate::{
     core::{
         arena::NodeArena,
@@ -13,6 +11,7 @@ use crate::{
     },
     elements::Element,
 };
+use std::sync::Arc;
 
 #[derive(Debug)]
 pub struct Text {
@@ -27,6 +26,8 @@ pub struct TextProps {
     pub content: Arc<str>,
     pub color: Color,
     pub font_size: f32,
+    pub font_family: Arc<str>,
+    pub font_weight: FontWeight,
 }
 
 impl Default for TextProps {
@@ -35,6 +36,8 @@ impl Default for TextProps {
             content: Arc::from(""),
             color: Color::BLACK,
             font_size: 12.0,
+            font_family: Arc::from("Segoe UI"),
+            font_weight: FontWeight::NORMAL,
         }
     }
 }
@@ -46,7 +49,7 @@ impl Text {
             &mut |this, v| {
                 this.text_props_mut().content = v;
             },
-            DirtyFlags::PAINT,
+            DirtyFlags::PAINT | DirtyFlags::LAYOUT,
             |data, _, v| {
                 data.kind.as_text_mut().content = v;
             },
@@ -83,6 +86,21 @@ pub trait TextPropsExt: ReactivePropsExt + LeafStylePropsExt + NodePropsExt {
             DirtyFlags::PAINT | DirtyFlags::LAYOUT,
             |data, _, v| {
                 data.kind.as_text_mut().font_size = v;
+            },
+        );
+
+        self
+    }
+
+    fn font_weight(mut self, value: impl Into<Reactive<FontWeight>>) -> Self {
+        self.bind(
+            value,
+            &mut |this, v| {
+                this.text_props_mut().font_weight = v;
+            },
+            DirtyFlags::PAINT | DirtyFlags::LAYOUT,
+            |data, _, v| {
+                data.kind.as_text_mut().font_weight = v;
             },
         );
 
@@ -166,4 +184,26 @@ pub fn text(content: impl IntoTextContent) -> Text {
         deferred_bindings: Vec::new(),
     }
     .content(content.into_text_content())
+}
+
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct FontWeight(pub u16);
+
+impl FontWeight {
+    pub const THIN: FontWeight = FontWeight(100);
+    pub const EXTRA_LIGHT: FontWeight = FontWeight(200);
+    pub const LIGHT: FontWeight = FontWeight(300);
+    pub const REGULAR: FontWeight = FontWeight(400);
+    pub const NORMAL: FontWeight = FontWeight::REGULAR;
+    pub const MEDIUM: FontWeight = FontWeight(500);
+    pub const SEMI_BOLD: FontWeight = FontWeight(600);
+    pub const BOLD: FontWeight = FontWeight(700);
+    pub const EXTRA_BOLD: FontWeight = FontWeight(800);
+    pub const BLACK: FontWeight = FontWeight(900);
+    pub const EXTRA_BLACK: FontWeight = FontWeight(950);
+
+    pub fn new(raw: u16) -> FontWeight {
+        let raw = raw.clamp(1, 1000);
+        FontWeight(raw)
+    }
 }
