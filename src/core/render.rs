@@ -7,13 +7,13 @@ use crate::{
     elements::text::TextProps,
 };
 
-pub mod piet;
-pub mod tinyskia;
+pub mod d2d;
 
 #[derive(Debug)]
 pub enum RenderCommand {
     Rect {
         bounds: Rect<f32>,
+        corner_radius: f32,
         color: Color,
         opacity: f32,
         transform: Transform,
@@ -38,12 +38,12 @@ impl RenderCommand {
     }
 }
 
-pub trait Renderer {
+pub trait Renderer: Sized {
     fn render(&mut self, commands: &[RenderCommand]) -> Result<()>;
-    fn get_size(&self) -> Size<usize>;
+    fn resize(&mut self, size: Size<usize>) -> Result<()>;
     fn measure_text(
         &mut self,
         text_props: &TextProps,
-        available_width: AvailableSpace,
+        available_size: Size<AvailableSpace>,
     ) -> Result<Size<f32>>;
 }

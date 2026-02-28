@@ -44,17 +44,30 @@ pub trait DivPropsExt:
         );
         self
     }
+
+    fn rounded(mut self, radius: impl Into<Reactive<f32>>) -> Self {
+        self.bind(
+            radius,
+            &mut |div, radius| div.div_props_mut().corner_radius = radius,
+            DirtyFlags::PAINT,
+            |node, _, radius| node.kind.as_div_mut().corner_radius = radius,
+        );
+
+        self
+    }
 }
 
 #[derive(Debug, Clone)]
 pub struct DivProps {
     pub background_color: Color,
+    pub corner_radius: f32, // TODO: make it DefiniteDimension
 }
 
 impl Default for DivProps {
     fn default() -> Self {
         DivProps {
             background_color: Color::TRANSPARENT,
+            corner_radius: 0.0,
         }
     }
 }

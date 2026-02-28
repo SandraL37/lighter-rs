@@ -11,12 +11,13 @@ use crate::core::{
     signal::{Reactive, ReadSignal},
 };
 
-pub struct LayoutContext<'a> {
+pub struct LayoutContext<'a, R: Renderer> {
+    pub root: NodeId,
     pub arena: &'a mut NodeArena,
-    pub renderer: &'a mut dyn Renderer,
+    pub renderer: &'a mut R,
 }
 
-impl<'a> LayoutContext<'a> {
+impl<'a, R: Renderer> LayoutContext<'a, R> {
     pub fn get_children(&self, node_id: impl Into<NodeId>) -> &Vec<NodeId> {
         self.arena.get_children(node_id.into()).expect(
             "Layout engine error: Malformed NodeArena. Tried to access children of a dropped node.",
@@ -45,6 +46,10 @@ impl<'a> LayoutContext<'a> {
         self.arena.get_data(node_id.into()).expect(
             "Layout engine error: Malformed NodeArena. Tried to access the data of a dropped node.",
         )
+    }
+
+    pub fn compute_layout(&mut self, available_space: Size<AvailableSpace>) {
+        compute_layout(self, self.root, available_space);
     }
 }
 
@@ -110,6 +115,15 @@ impl<T: Copy> Insets<T> {
             right: value,
             bottom: value,
             left: value,
+        }
+    }
+
+    pub fn xy(x: T, y: T) -> Self {
+        Self {
+            top: y,
+            right: x,
+            bottom: y,
+            left: x,
         }
     }
 }

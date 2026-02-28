@@ -69,19 +69,19 @@ pub trait ReactivePropsExt: Sized {
     fn bind<T>(
         &mut self,
         value: impl Into<Reactive<T>>,
-        static_func: &mut (impl FnMut(&mut Self, T) + 'static),
+        static_callback: &mut (impl FnMut(&mut Self, T) + 'static),
         dirty_flags: DirtyFlags,
-        dynamic_func: impl Fn(&mut NodeData, &mut NodeLayout, T) + Clone + 'static,
+        reactive_callback: impl Fn(&mut NodeData, &mut NodeLayout, T) + Clone + 'static,
     ) where
         T: Clone + 'static,
     {
         match value.into() {
-            Reactive::Static(v) => static_func(self, v),
+            Reactive::Static(v) => static_callback(self, v),
             Reactive::Dynamic(read_signal) => {
-                static_func(self, read_signal.get());
+                static_callback(self, read_signal.get());
                 self.deferred_bindings()
                     .push(DeferredBinding(Box::new(move |node_id, cx| {
-                        cx.bind(read_signal, node_id, dirty_flags, dynamic_func);
+                        cx.bind(read_signal, node_id, dirty_flags, reactive_callback);
                     })));
             }
         }

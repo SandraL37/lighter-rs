@@ -25,11 +25,18 @@ impl Color {
     pub const fn rgba(r: f32, g: f32, b: f32, a: f32) -> Self {
         Color { r, g, b, a }
     }
+
+    pub const fn hex(hex: u32) -> Self {
+        let r = ((hex >> 16) & 0xff) as f32 / 255.0;
+        let g = ((hex >> 8) & 0xff) as f32 / 255.0;
+        let b = (hex & 0xff) as f32 / 255.0;
+        Color { r, g, b, a: 1.0 }
+    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct Transform {
-    pub matrix: [f32; 6]
+    pub matrix: [f32; 6],
 }
 
 impl Transform {

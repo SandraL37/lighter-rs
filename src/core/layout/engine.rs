@@ -12,8 +12,8 @@ pub type ComputedLayout = taffy::Layout;
 pub type UnroundedLayout = taffy::Layout;
 pub type LayoutCache = taffy::Cache;
 
-pub fn compute_layout(
-    layout_context: &mut LayoutContext,
+pub fn compute_layout<R: Renderer>(
+    layout_context: &mut LayoutContext<R>,
     root: NodeId,
     available_space: Size<AvailableSpace>,
 ) {
@@ -44,7 +44,7 @@ impl Iterator for ChildIter<'_> {
 const NON_EXISTENT_NODE_ID: &str =
     "Taffy Layout Engine unexpected error: impossible to get a node because it does not exist.";
 
-impl<'a> taffy::TraversePartialTree for LayoutContext<'a> {
+impl<'a, R: Renderer> taffy::TraversePartialTree for LayoutContext<'a, R> {
     type ChildIter<'b>
         = ChildIter<'b>
     where
@@ -65,9 +65,9 @@ impl<'a> taffy::TraversePartialTree for LayoutContext<'a> {
     }
 }
 
-impl<'a> taffy::TraverseTree for LayoutContext<'a> {}
+impl<'a, R: Renderer> taffy::TraverseTree for LayoutContext<'a, R> {}
 
-impl<'a> taffy::LayoutPartialTree for LayoutContext<'a> {
+impl<'a, R: Renderer> taffy::LayoutPartialTree for LayoutContext<'a, R> {
     type CustomIdent = String;
 
     type CoreContainerStyle<'b>
@@ -106,7 +106,13 @@ impl<'a> taffy::LayoutPartialTree for LayoutContext<'a> {
                     |_known_dimensions, available_space| {
                         layout_context
                             .renderer
-                            .measure_text(&text_props, available_space.width.into())
+                            .measure_text(
+                                &text_props,
+                                Size::wh(
+                                    available_space.width.into(),
+                                    available_space.height.into(),
+                                ),
+                            )
                             .expect("Layout engine error while measuring text") // TODO: handle error
                             .into()
                     },
@@ -116,7 +122,7 @@ impl<'a> taffy::LayoutPartialTree for LayoutContext<'a> {
     }
 }
 
-impl<'a> taffy::CacheTree for LayoutContext<'a> {
+impl<'a, R: Renderer> taffy::CacheTree for LayoutContext<'a, R> {
     fn cache_get(
         &self,
         node_id: taffy::NodeId,
@@ -150,7 +156,7 @@ impl<'a> taffy::CacheTree for LayoutContext<'a> {
     }
 }
 
-impl<'a> taffy::RoundTree for LayoutContext<'a> {
+impl<'a, R: Renderer> taffy::RoundTree for LayoutContext<'a, R> {
     fn get_unrounded_layout(&self, node_id: taffy::NodeId) -> taffy::Layout {
         self.get_layout(node_id).unrounded
     }
@@ -160,28 +166,7 @@ impl<'a> taffy::RoundTree for LayoutContext<'a> {
     }
 }
 
-// TODO: implement this, choose between Tree, NodeArena, LayoutContext, Engine
-// impl taffy::PrintTree for NodeArena {
-//     fn get_debug_label(&self, node_id: taffy::NodeId) -> &'static str {
-//         // TODO: needs rework
-//         match self
-//             .get_data(node_id.into())
-//             .expect(NON_EXISTENT_NODE_ID)
-//             .kind
-//         {
-//             NodeKind::Div(_) => "Div",
-//             NodeKind::Text(_) => "Text",
-//         }
-//     }
-
-//     fn get_final_layout(&self, node_id: taffy::NodeId) -> taffy::Layout {
-//         self.get_layout(node_id.into())
-//             .expect(NON_EXISTENT_NODE_ID)
-//             .computed
-//     }
-// }
-
-impl<'a> taffy::LayoutFlexboxContainer for LayoutContext<'a> {
+impl<'a, R: Renderer> taffy::LayoutFlexboxContainer for LayoutContext<'a, R> {
     type FlexboxContainerStyle<'b>
         = &'b taffy::Style
     where
