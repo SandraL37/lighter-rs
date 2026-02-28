@@ -2,27 +2,29 @@ use lighter::{
     core::{
         application::Application,
         layout::{
-            AlignItems, ContainerStylePropsExt, FlexDirection, JustifyContent, Padding, auto,
-            percent, px,
+            AlignItems,
+            ContainerStylePropsExt,
+            JustifyContent,
+            percent,
         },
         style::Color,
         window::window,
     },
-    elements::{
-        div::{ChildrenExt, DivPropsExt, div},
-        text::{FontWeight, TextPropsExt, text},
-    },
+    elements::{ div::{ ChildrenExt, DivPropsExt, div }, text::{ FontWeight, TextPropsExt, text } },
 };
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
-    let page = div().size(percent(1.0)).bg(Color::RED).child(
-        div()
-            .w(px(800.0))
-            .h(px(600.0))
-            .bg(Color::BLACK)
-            .p(Padding::uniform(px(10.0)))
-            .child(div().bg(Color::WHITE).size(percent(1.0))),
-    );
+    let page = div()
+        .size(percent(1.0))
+        .bg(Color::WHITE)
+        .align(AlignItems::Center)
+        .justify(JustifyContent::Center)
+        .child(
+            text("Hello, Lighter!🎉")
+                .font_size(64.0)
+                .font_weight(FontWeight::BOLD)
+                .color(Color::BLACK)
+        );
 
     let mut app = Application::new()?;
     app.add_window(window().root(page))?;
