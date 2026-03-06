@@ -8,6 +8,8 @@ pub enum Error {
     D2DRendererError(windows_result::Error),
     #[error("Renderer error: {0}")] // TODO: Make this universal
     GenericRendererError(String),
+    #[error("GPU device lost — renderer must be recreated")]
+    DeviceLost,
 }
 
 pub type Result<T> = std::result::Result<T, Error>;

@@ -1,3 +1,5 @@
+use std::sync::Arc;
+
 use crate::{
     core::{
         arena::NodeArena,
@@ -82,7 +84,7 @@ impl<R: Renderer> Engine<R> {
                         },
                         NodeKind::Text(props) => RenderCommand::Text {
                             bounds: unrounded_bounds,
-                            props: props.clone(), // TODO: is there a better way
+                            props: Arc::clone(props), // TODO: is there a better way
                             opacity: node.props.opacity,
                             transform: node.props.transform.unwrap_or(Transform::IDENTITY),
                             z_index: node.props.z_index,
@@ -134,6 +136,7 @@ impl<R: Renderer> Engine<R> {
             let mut commands = self.build_render_list(is_layout_dirty, is_paint_dirty)?;
 
             //  O(nlogn) sort is not ideal TODO: optimize
+            // There are lots of better solution to sorting, find the best one
             commands.sort_by(|a, b| a.z_index().cmp(&b.z_index()));
 
             self.renderer.render(&commands)?;
@@ -145,7 +148,7 @@ impl<R: Renderer> Engine<R> {
     pub fn resize(&mut self, size: Size<usize>) -> Result<()> {
         self.size = size;
         self.arena.mark_dirty(self.root, DirtyFlags::LAYOUT)?;
-
+        self.renderer.resize(size)?;
         Ok(())
     }
 

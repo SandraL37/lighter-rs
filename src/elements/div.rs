@@ -1,3 +1,5 @@
+use std::sync::Arc;
+
 use crate::{
     core::{
         arena::NodeArena,
@@ -80,7 +82,7 @@ impl Element for Div {
         parent: Option<NodeId>,
     ) -> Result<NodeId> {
         let id = arena.create_node(
-            NodeKind::Div(self.div_props),
+            NodeKind::Div(Arc::new(self.div_props)),
             self.node_props,
             parent,
             self.layout_props,

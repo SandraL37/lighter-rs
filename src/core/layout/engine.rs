@@ -94,8 +94,8 @@ impl<'a, R: Renderer> taffy::LayoutPartialTree for LayoutContext<'a, R> {
                 .mark_clean(node_id.into(), DirtyFlags::LAYOUT)
                 .expect(NON_EXISTENT_NODE_ID);
 
-            let node_kind = layout_context.get_data(node_id).kind.clone(); // TODO: remove clone in some way
-            let style = layout_context.get_layout(node_id).style.clone();
+            let node_kind = layout_context.get_data(node_id).kind.clone(); // TODO: check if this clone is cheap
+            let style = layout_context.get_layout(node_id).style.clone(); // TODO: fix this
 
             match node_kind {
                 NodeKind::Div(_) => compute_flexbox_layout(layout_context, node_id, inputs),

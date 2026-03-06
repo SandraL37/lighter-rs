@@ -35,7 +35,7 @@ impl Default for TextProps {
         TextProps {
             content: Arc::from(""),
             color: Color::BLACK,
-            font_size: 12.0,
+            font_size: 16.0,
             font_family: Arc::from("Segoe UI"),
             font_weight: FontWeight::NORMAL,
         }
@@ -140,7 +140,7 @@ impl Element for Text {
         parent: Option<NodeId>,
     ) -> Result<NodeId> {
         let id = arena.create_node(
-            NodeKind::Text(self.text_props),
+            NodeKind::Text(Arc::new(self.text_props)),
             self.node_props,
             parent,
             self.layout_style,

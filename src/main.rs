@@ -1,33 +1,44 @@
+#![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 use lighter::{
     core::{
         application::Application,
-        layout::{
-            AlignItems,
-            ContainerStylePropsExt,
-            JustifyContent,
-            percent,
-        },
+        layout::{AlignItems, ContainerStylePropsExt, FlexDirection, JustifyContent, percent, px},
         style::Color,
         window::window,
     },
-    elements::{ div::{ ChildrenExt, DivPropsExt, div }, text::{ FontWeight, TextPropsExt, text } },
+    elements::{
+        Element,
+        div::{ChildrenExt, Div, DivPropsExt, div},
+        text::{FontWeight, TextPropsExt, text},
+    },
 };
 
-fn main() -> Result<(), Box<dyn std::error::Error>> {
-    let page = div()
+fn scene() -> impl Element {
+    let mut result = div().flex_direction(FlexDirection::Column);
+    for i in 0..10 {
+        result = result.child(
+            text(format!("{} - Hello World! 🎉", i + 1))
+                .font_weight(FontWeight::BOLD)
+                .font_size(26.0)
+                .color(Color::WHITE),
+        );
+    }
+    result
+}
+
+fn center(element: impl Element + 'static) -> Div {
+    div()
         .size(percent(1.0))
-        .bg(Color::WHITE)
         .align(AlignItems::Center)
         .justify(JustifyContent::Center)
-        .child(
-            text("Hello, Lighter!🎉")
-                .font_size(64.0)
-                .font_weight(FontWeight::BOLD)
-                .color(Color::BLACK)
-        );
+        .child(element)
+}
+
+fn main() -> Result<(), Box<dyn std::error::Error>> {
+    let page = center(scene());
 
     let mut app = Application::new()?;
-    app.add_window(window().root(page))?;
+    app.add_window(window().title("lighter").root(page))?;
 
     app.run();
     Ok(())

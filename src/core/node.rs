@@ -1,3 +1,5 @@
+use std::sync::Arc;
+
 use crate::{
     core::{cx::ReactivePropsExt, dirty::DirtyFlags, signal::Reactive, style::Transform},
     elements::{div::DivProps, text::TextProps},
@@ -16,14 +18,14 @@ pub struct NodeData {
 
 #[derive(Debug, Clone)]
 pub enum NodeKind {
-    Div(DivProps),
-    Text(TextProps),
+    Div(Arc<DivProps>),
+    Text(Arc<TextProps>),
 }
 
 impl NodeKind {
     pub fn as_div_mut(&mut self) -> &mut DivProps {
         if let NodeKind::Div(props) = self {
-            props
+            Arc::make_mut(props)
         } else {
             unreachable!("Not a div"); // TODO: check correctness
         }
@@ -31,7 +33,7 @@ impl NodeKind {
 
     pub fn as_text_mut(&mut self) -> &mut TextProps {
         if let NodeKind::Text(props) = self {
-            props
+            Arc::make_mut(props)
         } else {
             unreachable!("Not a text");
         }

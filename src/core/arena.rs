@@ -211,9 +211,10 @@ impl NodeArena {
             return Ok(());
         }
 
+        let newly_set = flags & !node_data.dirty;
         node_data.dirty = new_dirty;
 
-        self.dirty_counter.increment(flags);
+        self.dirty_counter.increment(newly_set);
 
         if flags.contains(DirtyFlags::LAYOUT) {
             if let Ok(layout) = self

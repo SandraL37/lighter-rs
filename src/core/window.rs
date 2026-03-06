@@ -1,3 +1,5 @@
+use std::rc::Rc;
+
 use crate::{
     core::{
         engine::Engine,
@@ -19,33 +21,32 @@ pub unsafe extern "system" fn wnd_proc(
     wparam: WPARAM,
     lparam: LPARAM,
 ) -> LRESULT {
-    let window = unsafe { GetWindowLongPtrW(hwnd, GWLP_USERDATA) } as *mut Window;
+    let window_ptr = unsafe { GetWindowLongPtrW(hwnd, GWLP_USERDATA) } as *mut Window;
 
-    if window.is_null() {
+    if window_ptr.is_null() {
         return unsafe { DefWindowProcW(hwnd, msg, wparam, lparam) };
     }
 
+    let window = unsafe { &mut *window_ptr };
+
     match msg {
-        WM_CREATE => {
-            let _ = unsafe { (*window).engine.frame() }; // TODO: change, never called because in this step window is still null
-            LRESULT(0)
-        }
-        WM_NCCREATE => {
-            let _ = unsafe { (*window).engine.frame() }; // TODO: change
-            LRESULT(0)
-        }
         WM_PAINT => {
-            let _ = unsafe { (*window).engine.frame() }; // TODO: change
+            let _ = window.engine.frame(); // TODO: change
             LRESULT(0)
         }
         WM_SIZE => {
-            let width = (lparam.0 & 0xFFFF) as usize;
-            let height = ((lparam.0 >> 16) & 0xFFFF) as usize;
+            let width = (lparam.0 as u32 & 0xFFFF) as usize;
+            let height = ((lparam.0 as u32 >> 16) & 0xFFFF) as usize;
 
-            let old_size = unsafe { (*window).engine.get_size() };
+            let old_size = window.engine.get_size();
 
             if !(old_size.width == width && old_size.height == height) {
-                unsafe { (*window).engine.resize(Size::wh(width, height)).unwrap() };
+                window.engine.resize(Size::wh(width, height)).unwrap();
+
+                let result = window.engine.frame(); // TODO: change
+                if matches!(result, Err(Error::DeviceLost)) {
+                    todo!()
+                }
             }
 
             LRESULT(0)
@@ -72,23 +73,23 @@ impl Window {
         factory: &D2DRendererFactory,
         root: Box<dyn Element>,
     ) -> Result<Box<Window>> {
-        // let mut rect = RECT {
-        //     left: 0,
-        //     top: 0,
-        //     right: size.width as i32,
-        //     bottom: size.height as i32,
-        // };
-        // unsafe { AdjustWindowRect(&mut rect, WS_OVERLAPPEDWINDOW, false)? };
+        let mut rect = RECT {
+            left: 0,
+            top: 0,
+            right: size.width as i32,
+            bottom: size.height as i32,
+        };
+        unsafe { AdjustWindowRect(&mut rect, WS_OVERLAPPEDWINDOW, false)? };
 
-        // let window_width = rect.right - rect.left;
-        // let window_height = rect.bottom - rect.top; TODO
+        let window_width = rect.right - rect.left;
+        let window_height = rect.bottom - rect.top;
 
         let title = HSTRING::from(title);
         let class_name = HSTRING::from("window_class");
 
         let hwnd = unsafe {
             CreateWindowExW(
-                WINDOW_EX_STYLE::default(),
+                WS_EX_NOREDIRECTIONBITMAP,
                 PCWSTR(class_name.as_ptr()),
                 PCWSTR(title.as_ptr()),
                 WS_OVERLAPPEDWINDOW | WS_VISIBLE,
@@ -100,8 +101,8 @@ impl Window {
                     Some(point) => point.y as i32,
                     None => CW_USEDEFAULT,
                 },
-                size.width as i32,
-                size.height as i32,
+                window_width as i32,
+                window_height as i32,
                 None,
                 None,
                 Some(hinstance),
@@ -109,13 +110,15 @@ impl Window {
             )?
         };
 
-        let renderer = factory.create_renderer_for_hwnd(hwnd, Size::wh(2000, 2000))?;
+        let renderer = factory.create_renderer_for_hwnd(hwnd, size)?;
         let engine = Engine::new(renderer, root, size)?;
 
         let window = Box::new(Window { hwnd, engine });
-        unsafe { SetWindowLongPtrW(hwnd, GWLP_USERDATA, &*window as *const Window as isize) };
+        let raw = Box::into_raw(window);
 
-        Ok(window)
+        unsafe { SetWindowLongPtrW(hwnd, GWLP_USERDATA, raw as isize) };
+
+        Ok(unsafe { Box::from_raw(raw) })
     }
 }
 

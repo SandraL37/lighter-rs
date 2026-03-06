@@ -1,4 +1,13 @@
-use std::f32;
+use std::{collections::HashMap, f32, sync::Arc};
+
+/*
+ * Main problems:
+ * 1. too slow
+ * 2. too pixelated for small font (Maybe antialiasing needed?)
+ *
+ *
+ * TODO: need to handle when dpi changes
+ */
 
 use windows::{
     Win32::{
@@ -10,6 +19,7 @@ use windows::{
             DirectWrite::*,
             Dxgi::{Common::*, *},
         },
+        UI::HiDpi::*,
     },
     core::{HSTRING, Interface},
 };
@@ -107,27 +117,43 @@ impl D2DRendererFactory {
             dwrite_factory,
         })
     }
+
+    pub fn rebuild(&mut self) -> Result<()> {
+        self.d3d_device = Self::create_d3d_device()?;
+        self.dxgi_device = Self::create_dxgi_device(&self.d3d_device)?;
+        self.d2d_device = Self::create_d2d_device(&self.d2d_factory, &self.dxgi_device)?;
+        Ok(())
+    }
 }
 
 impl D2DRendererFactory {
     pub fn create_renderer_for_hwnd(&self, hwnd: HWND, size: Size<usize>) -> Result<D2DRenderer> {
+        let dpi = unsafe {
+            let raw = GetDpiForWindow(hwnd);
+            if raw == 0 { 96.0 } else { raw as f32 }
+        };
+
         let swapchain = self.create_swapchain(hwnd, &size)?;
         let d2d_device_context = self.create_device_context()?;
-        let bitmap = Self::create_target_bitmap(&d2d_device_context, &swapchain)?;
+
+        unsafe {
+            d2d_device_context.SetTextAntialiasMode(D2D1_TEXT_ANTIALIAS_MODE_CLEARTYPE);
+            d2d_device_context.SetDpi(dpi, dpi);
+        }
+
+        let bitmap = Self::create_target_bitmap(&d2d_device_context, &swapchain, dpi)?;
         let brush =
             unsafe { d2d_device_context.CreateSolidColorBrush(&Color::WHITE.into(), None)? };
 
         Ok(D2DRenderer {
-            _d3d_device: self.d3d_device.clone(),
-            _dxgi_device: self.dxgi_device.clone(),
-            _d2d_factory: self.d2d_factory.clone(),
-            _d2d_device: self.d2d_device.clone(),
-            _dwrite_factory: self.dwrite_factory.clone(),
+            dwrite_factory: self.dwrite_factory.clone(),
             swapchain,
             d2d_device_context,
             target_bitmap: Some(bitmap),
             brush,
             size,
+            dpi,
+            text_format_cache: HashMap::new(),
         })
     }
 
@@ -217,7 +243,7 @@ impl D2DRendererFactory {
             BufferCount: 2,
             Scaling: DXGI_SCALING_NONE,
             SwapEffect: DXGI_SWAP_EFFECT_FLIP_DISCARD,
-            AlphaMode: DXGI_ALPHA_MODE_IGNORE,
+            AlphaMode: DXGI_ALPHA_MODE_IGNORE, // TODO: if i set premultiplied it crashes why?
             Flags: 0,
         };
 
@@ -233,6 +259,7 @@ impl D2DRendererFactory {
     fn create_target_bitmap(
         d2d_device_context: &D2DDeviceContext,
         swapchain: &DXGISwapChain,
+        dpi: f32,
     ) -> Result<D2DBitmap> {
         let surface: DXGISurface = unsafe { swapchain.GetBuffer(0)? }; // TODO: check correctness
 
@@ -241,8 +268,8 @@ impl D2DRendererFactory {
                 format: DXGI_FORMAT_B8G8R8A8_UNORM,
                 alphaMode: D2D1_ALPHA_MODE_PREMULTIPLIED,
             },
-            dpiX: 96.0, // TODO: implement DPI
-            dpiY: 96.0, // TODO: implement DPI
+            dpiX: dpi,
+            dpiY: dpi,
             bitmapOptions: D2D1_BITMAP_OPTIONS_TARGET | D2D1_BITMAP_OPTIONS_CANNOT_DRAW, // TODO: Check correctness
             colorContext: std::mem::ManuallyDrop::new(None), // TODO: Check correctness
         };
@@ -257,22 +284,20 @@ impl D2DRendererFactory {
 
 // to be stored per window
 pub struct D2DRenderer {
-    // TODO: check if all of that is needed
-    _d3d_device: D3DDevice,
-    _dxgi_device: DXGIDevice,
-    _d2d_factory: D2DFactory,
-    _d2d_device: D2DDevice,
-    _dwrite_factory: DWriteFactory,
+    dwrite_factory: DWriteFactory,
 
     swapchain: DXGISwapChain,
     d2d_device_context: D2DDeviceContext,
     target_bitmap: Option<D2DBitmap>,
     brush: D2DSolidColorBrush,
     size: Size<usize>,
+    dpi: f32,
+
+    text_format_cache: HashMap<TextFormatKey, DWriteTextFormat>,
 }
 
 impl D2DRenderer {
-    pub fn resize(&mut self, new_size: Size<usize>) -> Result<()> {
+    pub fn recreate_swapchain(&mut self, new_size: Size<usize>) -> Result<()> {
         unsafe {
             self.d2d_device_context.SetTarget(None);
         };
@@ -292,6 +317,7 @@ impl D2DRenderer {
         self.target_bitmap = Some(D2DRendererFactory::create_target_bitmap(
             &self.d2d_device_context,
             &self.swapchain,
+            self.dpi,
         )?);
 
         self.size = new_size;
@@ -299,22 +325,28 @@ impl D2DRenderer {
         Ok(())
     }
 
-    fn create_text_format(&self, props: &TextProps) -> Result<DWriteTextFormat> {
-        Ok(unsafe {
-            self._dwrite_factory.CreateTextFormat(
+    fn get_or_create_text_format(&mut self, props: &TextProps) -> Result<DWriteTextFormat> {
+        let key = TextFormatKey::from_props(props);
+
+        if let Some(cached) = self.text_format_cache.get(&key) {
+            return Ok(cached.clone());
+        }
+
+        let fmt = unsafe {
+            self.dwrite_factory.CreateTextFormat(
                 &HSTRING::from(props.font_family.to_string()),
-                None, // TODO: change
-                &[
-                    // TODO: add stretch and style
-                    DWRITE_FONT_AXIS_VALUE {
-                        axisTag: DWRITE_FONT_AXIS_TAG_WEIGHT,
-                        value: props.font_weight.0 as f32,
-                    },
-                ],
+                None,
+                &[DWRITE_FONT_AXIS_VALUE {
+                    axisTag: DWRITE_FONT_AXIS_TAG_WEIGHT,
+                    value: props.font_weight.0 as f32,
+                }],
                 props.font_size,
                 &HSTRING::from(""),
-            )
-        }?)
+            )?
+        };
+
+        self.text_format_cache.insert(key, fmt.clone());
+        Ok(fmt)
     }
 }
 
@@ -348,9 +380,9 @@ impl Renderer for D2DRenderer {
                         }
                         RenderCommand::Text { bounds, props, .. } => {
                             // TODO: needs caching
-                            let fmt = self.create_text_format(props)?;
+                            let fmt = self.get_or_create_text_format(props)?;
                             let utf16: Vec<u16> = props.content.encode_utf16().collect();
-                            let layout = self._dwrite_factory.CreateTextLayout(
+                            let layout = self.dwrite_factory.CreateTextLayout(
                                 &utf16,
                                 &fmt,
                                 bounds.size.width,
@@ -371,19 +403,30 @@ impl Renderer for D2DRenderer {
                     }
                 }
 
-                self.d2d_device_context.EndDraw(None, None)?;
-                let _ = self.swapchain.Present(1, DXGI_PRESENT(0)); // TODO: Handle Error
+                let result = self.d2d_device_context.EndDraw(None, None);
+
+                if let Err(e) = result
+                    && e.code() == D2DERR_RECREATE_TARGET
+                {
+                    return Err(Error::DeviceLost);
+                }
+
+                // TODO: add vsync once everything is perfect
+                let result = self.swapchain.Present(0, DXGI_PRESENT(0));
+
+                if matches!(result, DXGI_ERROR_DEVICE_REMOVED | DXGI_ERROR_DEVICE_RESET) {
+                    return Err(Error::DeviceLost);
+                }
             }
         } else {
-            // TODO: HANDLE ERROR
-            todo!();
+            return Err(Error::DeviceLost); // TODO: check correctness
         }
 
         Ok(())
     }
 
     fn resize(&mut self, size: Size<usize>) -> Result<()> {
-        self.resize(size)?;
+        self.recreate_swapchain(size)?;
 
         Ok(())
     }
@@ -403,10 +446,10 @@ impl Renderer for D2DRenderer {
             _ => f32::MAX,
         };
 
-        let fmt = self.create_text_format(text_props)?;
+        let fmt = self.get_or_create_text_format(text_props)?;
         let utf16: Vec<u16> = text_props.content.encode_utf16().collect();
         let layout = unsafe {
-            self._dwrite_factory
+            self.dwrite_factory
                 .CreateTextLayout(&utf16, &fmt, max_width, max_height)?
         };
 
@@ -417,3 +460,29 @@ impl Renderer for D2DRenderer {
         Ok(Size::wh(metrics.width, metrics.height))
     }
 }
+
+#[derive(Hash, Eq, PartialEq, Clone)]
+struct TextFormatKey {
+    font_family: Arc<str>,
+    font_size_bits: u32,
+    font_weight: u16,
+}
+
+impl TextFormatKey {
+    fn from_props(props: &TextProps) -> Self {
+        Self {
+            font_family: props.font_family.clone(),
+            font_size_bits: props.font_size.to_bits(),
+            font_weight: props.font_weight.0,
+        }
+    }
+}
+
+// TODO: To cache
+// #[derive(Hash, Eq, PartialEq)]
+// struct TextLayouutKey {
+//     content_ptr: usize,
+//     format_key: TextFormatKey,
+//     max_width_bits: u32,
+//     max_height_bits: u32,
+// }

@@ -1,5 +1,9 @@
+use std::rc::Rc;
+
 use windows::{
-    Win32::{Foundation::*, System::LibraryLoader::*, UI::WindowsAndMessaging::*},
+    Win32::{
+        Foundation::*, Graphics::Gdi::HBRUSH, System::LibraryLoader::*, UI::WindowsAndMessaging::*,
+    },
     core::{HSTRING, PCWSTR},
 };
 
@@ -27,6 +31,7 @@ impl Application {
             style: WNDCLASS_STYLES::default(),
             lpfnWndProc: Some(wnd_proc),
             hInstance: hinstance,
+            hbrBackground: HBRUSH(std::ptr::null_mut()),
             hCursor: unsafe { LoadCursorW(None, IDC_ARROW) }?,
             lpszClassName: PCWSTR(class_name.as_ptr()),
             ..Default::default()
@@ -52,8 +57,8 @@ impl Application {
     pub fn run(&self) {
         let mut msg = MSG::default();
         while unsafe { GetMessageW(&mut msg, None, 0, 0).0 } > 0 {
+            unsafe { TranslateMessage(&msg) }; // TODO: handle error
             unsafe { DispatchMessageW(&msg) };
-            unsafe { TranslateMessage(&msg) };
         }
     }
 }
