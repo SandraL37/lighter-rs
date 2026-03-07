@@ -2,7 +2,9 @@
 use lighter::{
     core::{
         application::Application,
-        layout::{AlignItems, ContainerStylePropsExt, FlexDirection, JustifyContent, percent, px},
+        layout::{
+            AlignItems, ContainerStylePropsExt, FlexDirection, JustifyContent, Padding, percent, px,
+        },
         style::Color,
         window::window,
     },
@@ -14,16 +16,15 @@ use lighter::{
 };
 
 fn scene() -> impl Element {
-    let mut result = div().flex_direction(FlexDirection::Column);
-    for i in 0..10 {
-        result = result.child(
-            text(format!("{} - Hello World! 🎉", i + 1))
-                .font_weight(FontWeight::BOLD)
-                .font_size(26.0)
-                .color(Color::WHITE),
-        );
-    }
-    result
+    div()
+        .p(Padding::xy(px(30.0), px(30.0)))
+        .flex_direction(FlexDirection::Column)
+        .gap(px(6.0))
+        .child(
+            text("Hello World")
+                .font_size(132.0)
+                .font_weight(FontWeight::BOLD),
+        )
 }
 
 fn center(element: impl Element + 'static) -> Div {
@@ -35,7 +36,7 @@ fn center(element: impl Element + 'static) -> Div {
 }
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
-    let page = center(scene());
+    let page = center(div().child(scene())).bg(Color::WHITE);
 
     let mut app = Application::new()?;
     app.add_window(window().title("lighter").root(page))?;

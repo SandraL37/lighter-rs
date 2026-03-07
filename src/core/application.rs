@@ -1,5 +1,3 @@
-use std::rc::Rc;
-
 use windows::{
     Win32::{
         Foundation::*, Graphics::Gdi::HBRUSH, System::LibraryLoader::*, UI::WindowsAndMessaging::*,

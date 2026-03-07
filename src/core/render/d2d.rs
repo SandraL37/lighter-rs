@@ -29,28 +29,16 @@ use crate::{
     core::{
         error::*,
         layout::{AvailableSpace, Point, Rect, Size},
-        render::{RenderCommand, Renderer},
+        render::{RenderCommand, Renderer, d2d::cache::D2DCache},
         style::Color,
     },
     elements::text::TextProps,
 };
 
-type D3DDevice = ID3D11Device5;
+pub mod cache;
+pub mod types;
 
-type D2DFactory = ID2D1Factory8;
-type D2DDevice = ID2D1Device7;
-type D2DDeviceContext = ID2D1DeviceContext7;
-type D2DBitmap = ID2D1Bitmap1;
-type D2DSolidColorBrush = ID2D1SolidColorBrush;
-
-type DWriteFactory = IDWriteFactory8;
-type DWriteTextFormat = IDWriteTextFormat3;
-
-type DXGIAdapter = IDXGIAdapter4;
-type DXGIDevice = IDXGIDevice4;
-type DXGIFactory = IDXGIFactory7;
-type DXGISwapChain = IDXGISwapChain3;
-type DXGISurface = IDXGISurface2;
+pub use types::*;
 
 pub struct D2DRendererFactory {
     d3d_device: D3DDevice,
@@ -142,18 +130,15 @@ impl D2DRendererFactory {
         }
 
         let bitmap = Self::create_target_bitmap(&d2d_device_context, &swapchain, dpi)?;
-        let brush =
-            unsafe { d2d_device_context.CreateSolidColorBrush(&Color::WHITE.into(), None)? };
 
         Ok(D2DRenderer {
+            cache: D2DCache::new(self.dwrite_factory.clone(), d2d_device_context.clone()),
             dwrite_factory: self.dwrite_factory.clone(),
             swapchain,
             d2d_device_context,
             target_bitmap: Some(bitmap),
-            brush,
             size,
             dpi,
-            text_format_cache: HashMap::new(),
         })
     }
 
@@ -289,11 +274,10 @@ pub struct D2DRenderer {
     swapchain: DXGISwapChain,
     d2d_device_context: D2DDeviceContext,
     target_bitmap: Option<D2DBitmap>,
-    brush: D2DSolidColorBrush,
     size: Size<usize>,
     dpi: f32,
 
-    text_format_cache: HashMap<TextFormatKey, DWriteTextFormat>,
+    cache: D2DCache,
 }
 
 impl D2DRenderer {
@@ -324,30 +308,6 @@ impl D2DRenderer {
 
         Ok(())
     }
-
-    fn get_or_create_text_format(&mut self, props: &TextProps) -> Result<DWriteTextFormat> {
-        let key = TextFormatKey::from_props(props);
-
-        if let Some(cached) = self.text_format_cache.get(&key) {
-            return Ok(cached.clone());
-        }
-
-        let fmt = unsafe {
-            self.dwrite_factory.CreateTextFormat(
-                &HSTRING::from(props.font_family.to_string()),
-                None,
-                &[DWRITE_FONT_AXIS_VALUE {
-                    axisTag: DWRITE_FONT_AXIS_TAG_WEIGHT,
-                    value: props.font_weight.0 as f32,
-                }],
-                props.font_size,
-                &HSTRING::from(""),
-            )?
-        };
-
-        self.text_format_cache.insert(key, fmt.clone());
-        Ok(fmt)
-    }
 }
 
 impl Renderer for D2DRenderer {
@@ -367,7 +327,7 @@ impl Renderer for D2DRenderer {
                             color,
                             ..
                         } => {
-                            self.brush.SetColor(&(*color).into());
+                            let brush = self.cache.get_solid_color_brush(color)?;
 
                             let rect = D2D1_ROUNDED_RECT {
                                 rect: (*bounds).into(),
@@ -375,12 +335,11 @@ impl Renderer for D2DRenderer {
                                 radiusY: *corner_radius,
                             };
 
-                            self.d2d_device_context
-                                .FillRoundedRectangle(&rect, &self.brush);
+                            self.d2d_device_context.FillRoundedRectangle(&rect, &brush);
                         }
                         RenderCommand::Text { bounds, props, .. } => {
                             // TODO: needs caching
-                            let fmt = self.get_or_create_text_format(props)?;
+                            let fmt = self.cache.get_text_format(props)?;
                             let utf16: Vec<u16> = props.content.encode_utf16().collect();
                             let layout = self.dwrite_factory.CreateTextLayout(
                                 &utf16,
@@ -389,12 +348,12 @@ impl Renderer for D2DRenderer {
                                 bounds.size.height,
                             )?;
 
-                            self.brush.SetColor(&props.color.into());
+                            let brush = self.cache.get_solid_color_brush(&props.color)?;
 
                             self.d2d_device_context.DrawTextLayout(
                                 bounds.location.into(),
                                 &layout,
-                                &self.brush,
+                                &brush,
                                 None, // TODO: check correctness
                                 0,    // TODO: check correctness
                                 D2D1_DRAW_TEXT_OPTIONS_ENABLE_COLOR_FONT,
@@ -446,7 +405,7 @@ impl Renderer for D2DRenderer {
             _ => f32::MAX,
         };
 
-        let fmt = self.get_or_create_text_format(text_props)?;
+        let fmt = self.cache.get_text_format(text_props)?;
         let utf16: Vec<u16> = text_props.content.encode_utf16().collect();
         let layout = unsafe {
             self.dwrite_factory
@@ -458,23 +417,6 @@ impl Renderer for D2DRenderer {
         unsafe { layout.GetMetrics(&mut metrics)? };
 
         Ok(Size::wh(metrics.width, metrics.height))
-    }
-}
-
-#[derive(Hash, Eq, PartialEq, Clone)]
-struct TextFormatKey {
-    font_family: Arc<str>,
-    font_size_bits: u32,
-    font_weight: u16,
-}
-
-impl TextFormatKey {
-    fn from_props(props: &TextProps) -> Self {
-        Self {
-            font_family: props.font_family.clone(),
-            font_size_bits: props.font_size.to_bits(),
-            font_weight: props.font_weight.0,
-        }
     }
 }
 

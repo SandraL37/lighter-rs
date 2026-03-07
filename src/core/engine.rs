@@ -67,7 +67,7 @@ impl<R: Renderer> Engine<R> {
                     cursor.y,
                     layout.unrounded.size.width,
                     layout.unrounded.size.height,
-                );
+                ); // TODO: fix
 
                 // TODO: BUG! partial rerenders are broken because of alpha
                 // TODO: Check if the only fix is adding damage tracking
@@ -141,7 +141,6 @@ impl<R: Renderer> Engine<R> {
 
             self.renderer.render(&commands)?;
         }
-
         Ok(())
     }
 

@@ -186,7 +186,7 @@ pub fn text(content: impl IntoTextContent) -> Text {
     .content(content.into_text_content())
 }
 
-#[derive(Debug, Clone, Copy, PartialEq)]
+#[derive(Debug, Clone, Copy, PartialEq, Hash, Eq)]
 pub struct FontWeight(pub u16);
 
 impl FontWeight {
