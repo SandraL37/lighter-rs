@@ -6,6 +6,7 @@ pub struct D2DCache {
     d2d_device_context: D2DDeviceContext,
     dwrite_factory: DWriteFactory,
     text_format: HashMap<TextFormatKey, DWriteTextFormat>,
+    text_layout: HashMap<TextLayoutKey, DWriteTextLayout>,
     solid_color_brush: HashMap<SolidColorBrushKey, D2DSolidColorBrush>,
 }
 
@@ -15,6 +16,7 @@ impl D2DCache {
             dwrite_factory,
             d2d_device_context,
             text_format: HashMap::new(),
+            text_layout: HashMap::new(),
             solid_color_brush: HashMap::new(),
         }
     }
@@ -41,6 +43,31 @@ impl D2DCache {
 
         self.text_format.insert(key, fmt.clone());
         Ok(fmt)
+    }
+
+    pub fn get_text_layout(
+        &mut self,
+        props: &TextProps,
+        max_size: Size<f32>,
+    ) -> Result<DWriteTextLayout> {
+        let key = TextLayoutKey::from(props, max_size);
+
+        if let Some(cached) = self.text_layout.get(&key) {
+            return Ok(cached.clone());
+        }
+
+        let fmt = self.get_text_format(props)?;
+
+        let utf16: Vec<u16> = props.content.encode_utf16().collect(); // TODO: check if better methods
+        let layout: DWriteTextLayout = unsafe {
+            self.dwrite_factory
+                .CreateTextLayout(&utf16, &fmt, max_size.width, max_size.height)?
+                .cast()?
+        };
+
+        self.text_layout.insert(key, layout.clone());
+
+        Ok(layout)
     }
 
     pub fn get_solid_color_brush(&mut self, color: &Color) -> Result<D2DSolidColorBrush> {
@@ -73,6 +100,23 @@ impl From<&TextProps> for TextFormatKey {
             font_family: Arc::clone(&props.font_family),
             font_size_bits: props.font_size.to_bits(),
             font_weight: props.font_weight,
+        }
+    }
+}
+
+#[derive(Hash, Eq, PartialEq, Clone)]
+struct TextLayoutKey {
+    content: Arc<str>,
+    max_width_bits: u32,
+    max_height_bits: u32,
+}
+
+impl TextLayoutKey {
+    pub fn from(props: &TextProps, bounds: Size<f32>) -> Self {
+        Self {
+            content: Arc::clone(&props.content),
+            max_width_bits: bounds.width.to_bits(),
+            max_height_bits: bounds.height.to_bits(),
         }
     }
 }

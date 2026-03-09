@@ -77,6 +77,21 @@ pub trait TextPropsExt: ReactivePropsExt + LeafStylePropsExt + NodePropsExt {
         self
     }
 
+    fn font_family(mut self, value: impl IntoTextContent) -> Self {
+        let value: Reactive<Arc<str>> = value.into_text_content();
+        self.bind(
+            value,
+            &mut |this, v| {
+                this.text_props_mut().font_family = v;
+            },
+            DirtyFlags::PAINT | DirtyFlags::LAYOUT,
+            |data, _, v| {
+                data.kind.as_text_mut().font_family = v;
+            },
+        );
+        self
+    }
+
     fn font_size(mut self, value: impl Into<Reactive<f32>>) -> Self {
         self.bind(
             value,

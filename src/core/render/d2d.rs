@@ -23,7 +23,7 @@ use windows::{
     },
     core::{HSTRING, Interface},
 };
-use windows_numerics::Vector2;
+use windows_numerics::{Matrix3x2, Vector2};
 
 use crate::{
     core::{
@@ -97,6 +97,10 @@ impl D2DRendererFactory {
         let d2d_device = Self::create_d2d_device(&d2d_factory, &dxgi_device)?;
         let dwrite_factory = Self::create_dwrite_factory()?;
 
+        unsafe {
+            SetProcessDpiAwarenessContext(DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE_V2)?;
+        }
+
         Ok(Self {
             d3d_device,
             dxgi_device,
@@ -121,12 +125,18 @@ impl D2DRendererFactory {
             if raw == 0 { 96.0 } else { raw as f32 }
         };
 
+        let scale = 96.0 / dpi; // TODO: shouldn't this be dpi/96.0? why it works?
+
         let swapchain = self.create_swapchain(hwnd, &size)?;
         let d2d_device_context = self.create_device_context()?;
 
         unsafe {
             d2d_device_context.SetTextAntialiasMode(D2D1_TEXT_ANTIALIAS_MODE_CLEARTYPE);
             d2d_device_context.SetDpi(dpi, dpi);
+        }
+
+        unsafe {
+            d2d_device_context.SetTransform(&Matrix3x2::scale(scale, scale)); // TODO: this is an escape hatch, fix in future
         }
 
         let bitmap = Self::create_target_bitmap(&d2d_device_context, &swapchain, dpi)?;
@@ -339,14 +349,7 @@ impl Renderer for D2DRenderer {
                         }
                         RenderCommand::Text { bounds, props, .. } => {
                             // TODO: needs caching
-                            let fmt = self.cache.get_text_format(props)?;
-                            let utf16: Vec<u16> = props.content.encode_utf16().collect();
-                            let layout = self.dwrite_factory.CreateTextLayout(
-                                &utf16,
-                                &fmt,
-                                bounds.size.width,
-                                bounds.size.height,
-                            )?;
+                            let layout = self.cache.get_text_layout(props, bounds.size)?;
 
                             let brush = self.cache.get_solid_color_brush(&props.color)?;
 

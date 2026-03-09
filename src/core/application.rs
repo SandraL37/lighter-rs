@@ -46,8 +46,8 @@ impl Application {
         })
     }
 
-    pub fn add_window(&mut self, builder: WindowBuilder) -> Result<()> {
-        let window = builder.build(self.hinstance, &self.factory)?;
+    pub fn add_window(&mut self, window: WindowBuilder) -> Result<()> {
+        let window = window.build(self.hinstance, &self.factory)?;
         self.windows.push(window);
         Ok(())
     }

@@ -58,7 +58,7 @@ pub unsafe extern "system" fn wnd_proc(
 }
 
 pub struct Window {
-    hwnd: HWND,
+    _hwnd: HWND,
     engine: Engine<D2DRenderer>,
 }
 
@@ -111,7 +111,10 @@ impl Window {
         let renderer = factory.create_renderer_for_hwnd(hwnd, size)?;
         let engine = Engine::new(renderer, root, size)?;
 
-        let window = Box::new(Window { hwnd, engine });
+        let window = Box::new(Window {
+            _hwnd: hwnd,
+            engine,
+        });
         let raw = Box::into_raw(window);
 
         unsafe { SetWindowLongPtrW(hwnd, GWLP_USERDATA, raw as isize) };
