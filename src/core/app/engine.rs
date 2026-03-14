@@ -2,17 +2,23 @@ use std::sync::Arc;
 
 use crate::{
     core::{
-        arena::NodeArena,
-        cx::{Cx, UpdateQueue},
-        dirty::DirtyFlags,
+        arena::{
+            NodeArena,
+            node::{NodeId, NodeKind},
+            tree::TreeContext,
+        },
         error::*,
+        event::{EngineEvent, MouseButton, hit_test::hit_test},
         layout::{AvailableSpace, LayoutContext, Point, Rect, Size},
-        node::{NodeId, NodeKind},
+        reactive::{
+            cx::{Cx, UpdateQueue},
+            dirty::DirtyFlags,
+        },
         render::{RenderCommand, Renderer},
         style::Transform,
-        tree::TreeContext,
     },
     elements::Element,
+    log,
 };
 
 pub struct Engine<R: Renderer> {
@@ -21,6 +27,7 @@ pub struct Engine<R: Renderer> {
     renderer: R,
     size: Size<usize>,
     updates: UpdateQueue,
+    hovered: Option<NodeId>,
 }
 
 impl<R: Renderer> Engine<R> {
@@ -34,7 +41,64 @@ impl<R: Renderer> Engine<R> {
             renderer,
             size,
             updates: cx.updates,
+            hovered: None,
         })
+    }
+
+    pub fn dispatch_event(&mut self, event: EngineEvent) -> Result<()> {
+        match event {
+            EngineEvent::WindowCreated => self.frame()?,
+            EngineEvent::WindowResized { size: new_size } => {
+                let old_size = self.size;
+
+                if !(old_size == new_size) {
+                    self.resize(new_size)?;
+                    self.frame()?;
+                }
+            }
+            EngineEvent::MouseMove { position } => {
+                let hit_path = hit_test(&self.arena, self.root, position);
+                let new_hover = hit_path.last().copied();
+
+                if new_hover != self.hovered {
+                    if let Some(old) = self.hovered {
+                        if let Ok(data) = self.arena.get_data(old) {
+                            if let Some(cb) = &data.event_handlers.on_mouse_leave {
+                                cb();
+                            }
+                        }
+                    }
+                    if let Some(new) = new_hover {
+                        if let Ok(data) = self.arena.get_data(new) {
+                            if let Some(cb) = &data.event_handlers.on_mouse_enter {
+                                cb();
+                            }
+                        }
+                    }
+                    self.hovered = new_hover;
+                }
+            }
+            EngineEvent::MouseDown {
+                position,
+                button: MouseButton::Left,
+            } => {
+                let hit_path = hit_test(&self.arena, self.root, position);
+                for &node_id in hit_path.iter().rev() {
+                    if let Ok(data) = self.arena.get_data(node_id) {
+                        if let Some(cb) = &data.event_handlers.on_click {
+                            cb();
+                        }
+                    }
+                }
+            }
+            _ => {}
+        }
+
+        if self.updates.borrow().len() > 0 {
+            self.frame()?;
+        }
+
+        Ok(())
     }
 
     fn build_render_list(
@@ -42,36 +106,25 @@ impl<R: Renderer> Engine<R> {
         layout_dirty: bool,
         paint_dirty: bool,
     ) -> Result<Vec<RenderCommand>> {
-        let cursor = Point::new(0.0, 0.0);
+        let cursor = Point::xy(0.0, 0.0);
         let mut commands = Vec::new();
         let mut redrawn_nodes = Vec::new();
 
         self.arena.traverse(
             self.root,
             &mut |node_id, node, layout, cursor: Point<f32>| -> Point<f32> {
-                let cursor = Point::new(
+                let cursor = Point::xy(
                     cursor.x + layout.computed.location.x,
                     cursor.y + layout.computed.location.y,
                 );
 
-                // let bounds = Rect::xywh(
-                //     cursor.x,
-                //     cursor.y,
-                //     layout.computed.size.width,
-                //     layout.computed.size.height,
-                // );
-
                 let unrounded_bounds = Rect::xywh(
-                    // TODO: avoid calculating both rounded and unrounded
                     cursor.x,
                     cursor.y,
                     layout.unrounded.size.width,
                     layout.unrounded.size.height,
-                ); // TODO: fix
+                );
 
-                // TODO: BUG! partial rerenders are broken because of alpha
-                // TODO: Check if the only fix is adding damage tracking
-                // if layout_dirty || node.dirty.contains(DirtyFlags::PAINT) {
                 if layout_dirty || paint_dirty {
                     commands.push(match &node.kind {
                         NodeKind::Div(props) => RenderCommand::Rect {
@@ -106,6 +159,8 @@ impl<R: Renderer> Engine<R> {
     }
 
     pub fn frame(&mut self) -> Result<()> {
+        log!("\rrendered frame");
+
         let pending = self.updates.borrow_mut().drain(..).collect::<Vec<_>>();
 
         for update in pending {

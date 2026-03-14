@@ -1,12 +1,17 @@
 use crate::{
     core::{
-        arena::NodeArena,
-        cx::{Cx, DeferredBinding, ReactivePropsExt},
-        dirty::DirtyFlags,
+        arena::{
+            NodeArena,
+            node::{EventHandlers, NodeId, NodeKind, NodeProps, NodePropsExt},
+        },
         error::*,
+        event::MouseEvents,
         layout::{LeafStyle, LeafStylePropsExt},
-        node::{NodeId, NodeKind, NodeProps, NodePropsExt},
-        signal::{Reactive, ReadSignal},
+        reactive::{
+            cx::{Cx, DeferredBinding, ReactivePropsExt},
+            dirty::DirtyFlags,
+            signal::{Reactive, ReadSignal},
+        },
         style::Color,
     },
     elements::Element,
@@ -19,6 +24,7 @@ pub struct Text {
     layout_style: LeafStyle,
     text_props: TextProps,
     deferred_bindings: Vec<DeferredBinding>,
+    event_handlers: EventHandlers,
 }
 
 #[derive(Debug, Clone)]
@@ -159,6 +165,7 @@ impl Element for Text {
             self.node_props,
             parent,
             self.layout_style,
+            self.event_handlers,
         )?;
 
         for binding in self.deferred_bindings {
@@ -197,6 +204,7 @@ pub fn text(content: impl IntoTextContent) -> Text {
         layout_style: LeafStyle::default(),
         text_props: TextProps::default(),
         deferred_bindings: Vec::new(),
+        event_handlers: EventHandlers::default(),
     }
     .content(content.into_text_content())
 }
@@ -220,5 +228,11 @@ impl FontWeight {
     pub fn new(raw: u16) -> FontWeight {
         let raw = raw.clamp(1, 1000);
         FontWeight(raw)
+    }
+}
+
+impl MouseEvents for Text {
+    fn event_handlers(&mut self) -> &mut EventHandlers {
+        &mut self.event_handlers
     }
 }

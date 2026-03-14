@@ -1,8 +1,11 @@
+pub mod node;
+pub mod tree;
+
 use crate::core::{
-    dirty::{DirtyCounter, DirtyFlags},
+    arena::node::{EventHandlers, NodeData, NodeId, NodeKind, NodeProps},
     error::*,
     layout::{LayoutKind, NodeLayout},
-    node::{NodeData, NodeId, NodeKind, NodeProps},
+    reactive::dirty::{DirtyCounter, DirtyFlags},
 };
 
 #[derive(Debug)]
@@ -79,11 +82,13 @@ impl NodeArena {
         props: NodeProps,
         parent: Option<NodeId>,
         layout_style: impl Into<LayoutKind>,
+        event_handlers: EventHandlers,
     ) -> Result<NodeId> {
         let id = self.data.insert(NodeData {
             kind,
             props,
             dirty: DirtyFlags::all(),
+            event_handlers,
         });
 
         self.dirty_counter.increment(DirtyFlags::all());

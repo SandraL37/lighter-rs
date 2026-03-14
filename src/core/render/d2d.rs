@@ -1,14 +1,5 @@
 use std::{collections::HashMap, f32, sync::Arc};
 
-/*
- * Main problems:
- * 1. too slow
- * 2. too pixelated for small font (Maybe antialiasing needed?)
- *
- *
- * TODO: need to handle when dpi changes
- */
-
 use windows::{
     Win32::{
         Foundation::*,
@@ -158,6 +149,21 @@ impl D2DRendererFactory {
         let feature_levels = [D3D_FEATURE_LEVEL_11_1, D3D_FEATURE_LEVEL_11_0];
 
         unsafe {
+            #[cfg(debug_assertions)]
+            D3D11CreateDevice(
+                None,
+                D3D_DRIVER_TYPE_HARDWARE,
+                HMODULE::default(),
+                D3D11_CREATE_DEVICE_BGRA_SUPPORT
+                    | D3D11_CREATE_DEVICE_SINGLETHREADED
+                    | D3D11_CREATE_DEVICE_DEBUG,
+                Some(&feature_levels),
+                D3D11_SDK_VERSION,
+                Some(&mut d3d_device),
+                None,
+                None,
+            )?;
+            #[cfg(not(debug_assertions))]
             D3D11CreateDevice(
                 None,
                 D3D_DRIVER_TYPE_HARDWARE,
@@ -238,7 +244,7 @@ impl D2DRendererFactory {
             BufferCount: 2,
             Scaling: DXGI_SCALING_NONE,
             SwapEffect: DXGI_SWAP_EFFECT_FLIP_DISCARD,
-            AlphaMode: DXGI_ALPHA_MODE_IGNORE, // TODO: if i set premultiplied it crashes why?
+            AlphaMode: DXGI_ALPHA_MODE_UNSPECIFIED, // TODO: if i set premultiplied it crashes why?
             Flags: 0,
         };
 
@@ -374,7 +380,7 @@ impl Renderer for D2DRenderer {
                 }
 
                 // TODO: add vsync once everything is perfect
-                let result = self.swapchain.Present(0, DXGI_PRESENT(0));
+                let result = self.swapchain.Present(1, DXGI_PRESENT(0));
 
                 if matches!(result, DXGI_ERROR_DEVICE_REMOVED | DXGI_ERROR_DEVICE_RESET) {
                     return Err(Error::DeviceLost);
@@ -422,12 +428,3 @@ impl Renderer for D2DRenderer {
         Ok(Size::wh(metrics.width, metrics.height))
     }
 }
-
-// TODO: To cache
-// #[derive(Hash, Eq, PartialEq)]
-// struct TextLayouutKey {
-//     content_ptr: usize,
-//     format_key: TextFormatKey,
-//     max_width_bits: u32,
-//     max_height_bits: u32,
-// }

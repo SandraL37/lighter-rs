@@ -1,7 +1,10 @@
-use std::sync::Arc;
+use std::{rc::Rc, sync::Arc};
 
 use crate::{
-    core::{cx::ReactivePropsExt, dirty::DirtyFlags, signal::Reactive, style::Transform},
+    core::{
+        reactive::{cx::ReactivePropsExt, dirty::DirtyFlags, signal::Reactive},
+        style::Transform,
+    },
     elements::{div::DivProps, text::TextProps},
 };
 
@@ -14,6 +17,7 @@ pub struct NodeData {
     pub kind: NodeKind,
     pub props: NodeProps,
     pub dirty: DirtyFlags,
+    pub event_handlers: EventHandlers,
 }
 
 #[derive(Debug, Clone)]
@@ -101,5 +105,33 @@ pub trait NodePropsExt: ReactivePropsExt {
             },
         );
         self
+    }
+}
+
+pub type EventCallback = Rc<dyn Fn()>;
+
+pub struct EventHandlers {
+    pub on_click: Option<EventCallback>,
+    pub on_mouse_enter: Option<EventCallback>,
+    pub on_mouse_leave: Option<EventCallback>,
+}
+
+impl Default for EventHandlers {
+    fn default() -> Self {
+        Self {
+            on_click: None,
+            on_mouse_enter: None,
+            on_mouse_leave: None,
+        }
+    }
+}
+
+impl std::fmt::Debug for EventHandlers {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("EventHandlers")
+            .field("on_click", &self.on_click.is_some())
+            .field("on_mouse_enter", &self.on_mouse_enter.is_some())
+            .field("on_mouse_leave", &self.on_mouse_leave.is_some())
+            .finish()
     }
 }

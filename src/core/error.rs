@@ -1,4 +1,4 @@
-use crate::core::node::NodeId;
+use crate::core::arena::node::NodeId;
 
 #[derive(Debug, thiserror::Error)]
 pub enum Error {

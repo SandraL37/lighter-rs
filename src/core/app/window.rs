@@ -1,7 +1,8 @@
 use crate::{
     core::{
-        engine::Engine,
+        app::engine::Engine,
         error::*,
+        event::{EngineEvent, MouseButton},
         layout::{Point, Size},
         render::d2d::{D2DRenderer, D2DRendererFactory},
     },
@@ -9,9 +10,14 @@ use crate::{
 };
 
 use windows::{
-    Win32::{Foundation::*, UI::WindowsAndMessaging::*},
+    Win32::{
+        Foundation::*,
+        Graphics::{Dwm::*, Gdi::*},
+        UI::WindowsAndMessaging::*,
+    },
     core::{HSTRING, PCWSTR},
 };
+use windows_result::BOOL;
 
 pub unsafe extern "system" fn wnd_proc(
     hwnd: HWND,
@@ -27,26 +33,69 @@ pub unsafe extern "system" fn wnd_proc(
 
     let window = unsafe { &mut *window_ptr };
 
+    // TODO: Handle errors
     match msg {
         WM_PAINT => {
-            let _ = window.engine.frame(); // TODO: change
+            let mut ps = PAINTSTRUCT::default();
+            unsafe { BeginPaint(hwnd, &mut ps) };
+            unsafe {
+                let _ = EndPaint(hwnd, &ps); // TODO: handle error
+            };
             LRESULT(0)
         }
         WM_SIZE => {
-            let width = (lparam.0 as u32 & 0xFFFF) as usize;
-            let height = ((lparam.0 as u32 >> 16) & 0xFFFF) as usize;
+            let size = Size::wh(
+                (lparam.0 as u32 & 0xFFFF) as usize,
+                ((lparam.0 as u32 >> 16) & 0xFFFF) as usize,
+            );
 
-            let old_size = window.engine.get_size();
+            window
+                .engine
+                .dispatch_event(EngineEvent::WindowResized { size })
+                .unwrap();
 
-            if !(old_size.width == width && old_size.height == height) {
-                window.engine.resize(Size::wh(width, height)).unwrap();
+            LRESULT(0)
+        }
+        WM_MOUSEMOVE => {
+            let position = Point::xy(
+                (lparam.0 & 0xFFFF) as f32,
+                ((lparam.0 >> 16) & 0xFFFF) as f32,
+            );
 
-                let result = window.engine.frame(); // TODO: change
-                if matches!(result, Err(Error::DeviceLost)) {
-                    todo!()
-                }
-            }
+            window
+                .engine
+                .dispatch_event(EngineEvent::MouseMove { position })
+                .unwrap();
+            LRESULT(0)
+        }
+        WM_LBUTTONDOWN => {
+            let position = Point::xy(
+                (lparam.0 & 0xFFFF) as f32,
+                ((lparam.0 >> 16) & 0xFFFF) as f32,
+            );
 
+            window
+                .engine
+                .dispatch_event(EngineEvent::MouseDown {
+                    position,
+                    button: MouseButton::Left,
+                })
+                .unwrap();
+            LRESULT(0)
+        }
+        WM_LBUTTONUP => {
+            let position = Point::xy(
+                (lparam.0 & 0xFFFF) as f32,
+                ((lparam.0 >> 16) & 0xFFFF) as f32,
+            );
+
+            window
+                .engine
+                .dispatch_event(EngineEvent::MouseUp {
+                    position,
+                    button: MouseButton::Left,
+                })
+                .unwrap();
             LRESULT(0)
         }
         WM_DESTROY => {
@@ -68,6 +117,8 @@ impl Window {
         title: String,
         size: Size<usize>,
         position: Option<Point<usize>>,
+        mode: WindowMode,
+        backdrop: WindowBackdrop,
         factory: &D2DRendererFactory,
         root: Box<dyn Element>,
     ) -> Result<Box<Window>> {
@@ -109,24 +160,44 @@ impl Window {
         };
 
         let renderer = factory.create_renderer_for_hwnd(hwnd, size)?;
-        let engine = Engine::new(renderer, root, size)?;
+        let mut engine = Engine::new(renderer, root, size)?;
+
+        engine.dispatch_event(EngineEvent::WindowCreated)?;
 
         let window = Box::new(Window {
             _hwnd: hwnd,
             engine,
         });
+
         let raw = Box::into_raw(window);
 
         unsafe { SetWindowLongPtrW(hwnd, GWLP_USERDATA, raw as isize) };
+        setup_window(hwnd, mode, backdrop)?;
 
         Ok(unsafe { Box::from_raw(raw) })
     }
+}
+
+pub enum WindowBackdrop {
+    None,
+    Auto,
+    Mica,
+    Acrylic,
+    MicaAlt,
+}
+
+pub enum WindowMode {
+    Light,
+    Dark,
+    System,
 }
 
 pub struct WindowBuilder {
     title: String,
     size: Size<usize>,
     position: Option<Point<usize>>,
+    mode: WindowMode,
+    backdrop: WindowBackdrop,
     root: Box<dyn Element>,
 }
 
@@ -146,6 +217,16 @@ impl WindowBuilder {
         self
     }
 
+    pub fn mode(mut self, mode: WindowMode) -> Self {
+        self.mode = mode;
+        self
+    }
+
+    pub fn backdrop(mut self, backdrop: WindowBackdrop) -> Self {
+        self.backdrop = backdrop;
+        self
+    }
+
     pub fn root(mut self, root: impl Element + 'static) -> Self {
         self.root = Box::new(root);
         self
@@ -157,6 +238,8 @@ impl WindowBuilder {
             self.title,
             self.size,
             self.position,
+            self.mode,
+            self.backdrop,
             factory,
             self.root,
         )
@@ -169,6 +252,8 @@ impl Default for WindowBuilder {
             title: String::from("window"),
             size: Size::wh(800, 600),
             position: None,
+            mode: WindowMode::Light,
+            backdrop: WindowBackdrop::None,
             root: Box::new(div()),
         }
     }
@@ -176,4 +261,40 @@ impl Default for WindowBuilder {
 
 pub fn window() -> WindowBuilder {
     WindowBuilder::default()
+}
+
+pub fn setup_window(hwnd: HWND, mode: WindowMode, backdrop: WindowBackdrop) -> Result<()> {
+    let mode_type = match mode {
+        WindowMode::Light => FALSE,
+        WindowMode::Dark => TRUE,
+        WindowMode::System => unimplemented!(), // TODO: implement
+    };
+
+    unsafe {
+        DwmSetWindowAttribute(
+            hwnd,
+            DWMWA_USE_IMMERSIVE_DARK_MODE,
+            &mode_type as *const _ as *const _,
+            std::mem::size_of::<BOOL>() as u32,
+        )?
+    };
+
+    let backdrop_type = match backdrop {
+        WindowBackdrop::Auto => DWMSBT_AUTO,
+        WindowBackdrop::None => DWMSBT_NONE,
+        WindowBackdrop::Mica => DWMSBT_MAINWINDOW,
+        WindowBackdrop::Acrylic => DWMSBT_TRANSIENTWINDOW,
+        WindowBackdrop::MicaAlt => DWMSBT_TABBEDWINDOW,
+    };
+
+    unsafe {
+        DwmSetWindowAttribute(
+            hwnd,
+            DWMWA_SYSTEMBACKDROP_TYPE,
+            &backdrop_type as *const _ as *const _,
+            std::mem::size_of::<DWMWINDOWATTRIBUTE>() as u32,
+        )?
+    };
+
+    Ok(())
 }

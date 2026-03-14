@@ -1,6 +1,10 @@
 use std::fmt::Debug;
 
-use crate::core::{arena::NodeArena, cx::Cx, error::*, node::NodeId};
+use crate::core::{
+    arena::{NodeArena, node::NodeId},
+    error::*,
+    reactive::cx::Cx,
+};
 
 pub mod div;
 pub mod text;

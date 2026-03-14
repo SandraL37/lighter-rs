@@ -1,14 +1,19 @@
 mod engine;
 
-pub use engine::{ComputedLayout, LayoutCache, LayoutStyle, UnroundedLayout, compute_layout};
+use std::ops::Add;
 
 use crate::core::{
-    arena::NodeArena,
-    cx::ReactivePropsExt,
-    dirty::DirtyFlags,
-    node::{NodeData, NodeId},
+    arena::{
+        NodeArena,
+        node::{NodeData, NodeId},
+    },
+    layout::engine::{ComputedLayout, LayoutCache, LayoutStyle, UnroundedLayout, compute_layout},
+    reactive::{
+        cx::ReactivePropsExt,
+        dirty::DirtyFlags,
+        signal::{Reactive, ReadSignal},
+    },
     render::Renderer,
-    signal::{Reactive, ReadSignal},
 };
 
 pub struct LayoutContext<'a, R: Renderer> {
@@ -72,7 +77,7 @@ impl NodeLayout {
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct Size<T> {
     pub width: T,
     pub height: T,
@@ -141,9 +146,22 @@ impl<T: Copy> Rect<T> {
 
     pub fn xywh(x: T, y: T, width: T, height: T) -> Self {
         Self {
-            location: Point::new(x, y),
+            location: Point::xy(x, y),
             size: Size::wh(width, height),
         }
+    }
+
+    pub fn includes(&self, point: Point<T>) -> bool
+    where
+        T: PartialOrd + Add<Output = T>,
+    {
+        let max_x = self.location.x + self.size.width;
+        let max_y = self.location.y + self.size.height;
+
+        point.x >= self.location.x
+            && point.y >= self.location.y
+            && point.x < max_x
+            && point.y < max_y
     }
 }
 
@@ -154,7 +172,7 @@ pub struct Point<T> {
 }
 
 impl<T: Clone> Point<T> {
-    pub fn new(x: T, y: T) -> Self {
+    pub fn xy(x: T, y: T) -> Self {
         Self { x, y }
     }
 }

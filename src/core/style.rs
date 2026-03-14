@@ -32,6 +32,10 @@ impl Color {
         let b = (hex & 0xff) as f32 / 255.0;
         Color { r, g, b, a: 1.0 }
     }
+
+    pub const fn with_alpha(self, a: f32) -> Self {
+        Color { a, ..self }
+    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq)]

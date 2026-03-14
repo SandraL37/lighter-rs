@@ -1,4 +1,4 @@
-use crate::core::{arena::NodeArena, node::NodeId};
+use crate::core::arena::{NodeArena, node::NodeId};
 
 #[derive(Debug)]
 pub struct TreeContext<'a> {

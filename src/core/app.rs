@@ -1,3 +1,6 @@
+pub mod engine;
+pub mod window;
+
 use windows::{
     Win32::{
         Foundation::*, Graphics::Gdi::HBRUSH, System::LibraryLoader::*, UI::WindowsAndMessaging::*,
@@ -6,9 +9,9 @@ use windows::{
 };
 
 use crate::core::{
+    app::window::{Window, WindowBuilder, wnd_proc},
     error::*,
     render::d2d::D2DRendererFactory,
-    window::{Window, WindowBuilder, wnd_proc},
 };
 
 // TODO: abstract more
@@ -59,4 +62,8 @@ impl Application {
             unsafe { DispatchMessageW(&msg) };
         }
     }
+}
+
+pub fn application() -> Result<Application> {
+    Application::new()
 }

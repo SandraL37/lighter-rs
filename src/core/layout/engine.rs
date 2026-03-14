@@ -2,9 +2,9 @@ use slotmap::Key;
 use taffy::{compute_flexbox_layout, compute_leaf_layout};
 
 use crate::core::{
-    dirty::DirtyFlags,
+    arena::node::{NodeId, NodeKind},
     layout::*,
-    node::{NodeId, NodeKind},
+    reactive::dirty::DirtyFlags,
 };
 
 pub type LayoutStyle = taffy::Style;

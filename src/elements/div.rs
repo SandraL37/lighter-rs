@@ -2,13 +2,18 @@ use std::sync::Arc;
 
 use crate::{
     core::{
-        arena::NodeArena,
-        cx::{Cx, DeferredBinding, ReactivePropsExt},
-        dirty::DirtyFlags,
+        arena::{
+            NodeArena,
+            node::{EventHandlers, NodeId, NodeKind, NodeProps, NodePropsExt},
+        },
         error::*,
+        event::MouseEvents,
         layout::{ContainerStyle, ContainerStylePropsExt},
-        node::{NodeId, NodeKind, NodeProps, NodePropsExt},
-        signal::Reactive,
+        reactive::{
+            cx::{Cx, DeferredBinding, ReactivePropsExt},
+            dirty::DirtyFlags,
+            signal::Reactive,
+        },
         style::Color,
     },
     elements::Element,
@@ -21,6 +26,7 @@ pub struct Div {
     div_props: DivProps,
     children: Vec<Box<dyn Element>>,
     deferred_bindings: Vec<DeferredBinding>,
+    event_handlers: EventHandlers,
 }
 
 pub trait ChildrenExt: Sized {
@@ -86,6 +92,7 @@ impl Element for Div {
             self.node_props,
             parent,
             self.layout_props,
+            self.event_handlers,
         )?;
 
         for binding in self.deferred_bindings {
@@ -137,5 +144,12 @@ pub fn div() -> Div {
         children: Vec::new(),
         div_props: DivProps::default(),
         deferred_bindings: Vec::new(),
+        event_handlers: EventHandlers::default(),
+    }
+}
+
+impl MouseEvents for Div {
+    fn event_handlers(&mut self) -> &mut EventHandlers {
+        &mut self.event_handlers
     }
 }

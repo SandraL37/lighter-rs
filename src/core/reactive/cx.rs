@@ -1,10 +1,12 @@
 use std::{cell::RefCell, rc::Rc};
 
 use crate::core::{
-    dirty::DirtyFlags,
+    arena::node::{NodeData, NodeId},
     layout::NodeLayout,
-    node::{NodeData, NodeId},
-    signal::{Reactive, ReadSignal},
+    reactive::{
+        dirty::DirtyFlags,
+        signal::{Reactive, ReadSignal},
+    },
 };
 
 pub struct PendingUpdate {
