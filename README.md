@@ -1,30 +1,35 @@
 # Lighter
+
 A barely working Ui framework. It uses D2D now but in future it will be
-rewired to Vulkan or DirectX. It is still in development and you can't use it
-to build applications as of now :(
+rewired to Vulkan or DirectX. You can use it but for now you can only draw text and rectangles!
+It is reactive!
 
 Coming soon...
 
 # Current state of development
 
 ```rust
-fn main() -> Result<(), Box<dyn std::error::Error>> {
-    let page = div()
+fn root() -> impl Element {
+    let count = signal(0);
+    let label = derived(move || format!("count: {}", count.get()));
+
+    div()
         .size(percent(1.0))
         .bg(Color::WHITE)
         .align(AlignItems::Center)
         .justify(JustifyContent::Center)
-        .child(
-            text("Hello, Lighter!🎉")
-                .font_size(64.0)
-                .font_weight(FontWeight::BOLD)
-                .color(Color::BLACK)
-        );
+        .child(text(label).font_size(48.0).on_click(move || {
+            count.update(|c| {
+                *c += 1;
+            })
+        }))
+}
 
-    let mut app = Application::new()?;
-    app.add_window(window().root(page))?;
+fn main() -> Result<(), Box<dyn std::error::Error>> {
+    app()?
+        .add(window().title("simple counter!").root(root()))?
+        .run()?;
 
-    app.run();
     Ok(())
 }
 ```

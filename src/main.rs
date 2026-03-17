@@ -28,12 +28,7 @@ fn root() -> impl Element {
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     app()?
-        .add(
-            window()
-                .title("simple counter!")
-                .size(Size::wh(300, 300))
-                .root(root()),
-        )?
+        .add(window().title("simple counter!").root(root()))?
         .run()?;
 
     Ok(())
