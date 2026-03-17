@@ -86,3 +86,23 @@ impl<T: 'static> From<Signal<T>> for MaybeSignal<T> {
         MaybeSignal::Signal(signal)
     }
 }
+
+impl<T: Clone + 'static> Clone for MaybeSignal<T> {
+    fn clone(&self) -> Self {
+        match self {
+            MaybeSignal::Static(v) => MaybeSignal::Static(v.clone()),
+            MaybeSignal::Signal(s) => MaybeSignal::Signal(*s),
+        }
+    }
+}
+
+impl<T: Clone + 'static> MaybeSignal<T> {
+    /// Maps the value through `f`. For static values this is free; for signals
+    /// it creates a derived signal (one extra reactive hop).
+    pub fn map<U: Clone + 'static>(self, f: impl Fn(T) -> U + 'static) -> MaybeSignal<U> {
+        match self {
+            MaybeSignal::Static(v) => MaybeSignal::Static(f(v)),
+            MaybeSignal::Signal(sig) => MaybeSignal::Signal(Signal::derive(move || f(sig.get()))),
+        }
+    }
+}

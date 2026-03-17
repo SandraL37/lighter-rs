@@ -2,7 +2,7 @@ use std::{ rc::Rc, sync::Arc };
 
 use crate::{
     core::{
-        layout::NodeLayout, reactive::{ bind::{ DeferredBinding, bind_field }, dirty::DirtyFlags, signal::MaybeSignal }, style::Transform
+        reactive::{ bind::{ DeferredBinding, bind_field }, dirty::DirtyFlags, signal::MaybeSignal }, style::Transform
     },
     elements::{ div::DivProps, text::TextProps },
 };
@@ -61,49 +61,28 @@ impl Default for NodeProps {
     }
 }
 
-fn resolve_node_props(data: &mut NodeData, _layout: &mut NodeLayout) -> &'static mut NodeProps {
-    &mut data.props
-}
-
 pub trait NodePropsExt: Sized {
-    fn node_props_mut(&mut self) -> &mut NodeProps;
-    fn bindings_mut(&mut self) -> &mut Vec<DeferredBinding>;
+    fn node_ctx(&mut self) -> (&mut NodeProps, &mut Vec<DeferredBinding>);
 
     fn opacity(mut self, value: impl Into<MaybeSignal<f32>>) -> Self {
-        bind_field(
-            self.node_props_mut(),
-            self.bindings_mut(),
-            value,
-            DirtyFlags::PAINT,
-            |props| &mut props.opacity,
-            resolve_node_props
-        );
+        let (props, bindings) = self.node_ctx();
+        bind_field(&mut props.opacity, bindings, value, DirtyFlags::PAINT,
+            |data, _, val| data.props.opacity = val);
         self
     }
 
     fn z(mut self, value: impl Into<MaybeSignal<i32>>) -> Self {
-        bind_field(
-            self.node_props_mut(),
-            self.bindings_mut(),
-            value,
-            DirtyFlags::PAINT,
-            |props| &mut props.z_index,
-            resolve_node_props
-        );
+        let (props, bindings) = self.node_ctx();
+        bind_field(&mut props.z_index, bindings, value, DirtyFlags::PAINT,
+            |data, _, val| data.props.z_index = val);
         self
     }
 
     fn transform(mut self, value: impl Into<MaybeSignal<Transform>>) -> Self {
-        let value = value.into().map(|transform| Some(transform));
-        
-        bind_field(
-            self.node_props_mut(),
-            self.bindings_mut(),
-            value,
-            DirtyFlags::PAINT,
-            |props| &mut props.transform,
-            resolve_node_props
-        );
+        let (props, bindings) = self.node_ctx();
+        let value = value.into().map(Some);
+        bind_field(&mut props.transform, bindings, value, DirtyFlags::PAINT,
+            |data, _, val| data.props.transform = val);
         self
     }
 }

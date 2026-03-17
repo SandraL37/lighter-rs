@@ -2,11 +2,11 @@ use crate::{
     core::{
         arena::{
             NodeArena,
-            node::{EventHandlers, NodeData, NodeId, NodeKind, NodeProps, NodePropsExt},
+            node::{EventHandlers, NodeId, NodeKind, NodeProps, NodePropsExt},
         },
         error::*,
         event::MouseEvents,
-        layout::{LeafStyle, LeafStylePropsExt, NodeLayout},
+        layout::{LayoutStyle, LeafStylePropsExt},
         reactive::{
             bind::{DeferredBinding, bind_field},
             dirty::DirtyFlags,
@@ -18,9 +18,10 @@ use crate::{
 };
 use std::sync::Arc;
 
+#[derive(Debug)]
 pub struct Text {
     node_props: NodeProps,
-    layout_style: LeafStyle,
+    layout_style: LayoutStyle,
     text_props: TextProps,
     deferred_bindings: Vec<DeferredBinding>,
     event_handlers: EventHandlers,
@@ -47,107 +48,64 @@ impl Default for TextProps {
     }
 }
 
-impl Text {
-    fn content(mut self, value: impl Into<MaybeSignal<Arc<str>>>) -> Self {
-        bind_field(
-            &mut self.text_props,
-            &mut self.deferred_bindings,
-            value,
-            DirtyFlags::PAINT | DirtyFlags::LAYOUT,
-            |props| &mut props.content,
-            resolve_text_props,
-        );
+pub trait TextPropsExt: Sized {
+    fn text_ctx(&mut self) -> (&mut TextProps, &mut Vec<DeferredBinding>);
 
+    fn content(mut self, value: impl IntoTextContent) -> Self {
+        let (props, bindings) = self.text_ctx();
+        bind_field(&mut props.content, bindings, value.into_text_content(),
+            DirtyFlags::PAINT | DirtyFlags::LAYOUT,
+            |data, _, val| data.kind.as_text_mut().content = val);
         self
     }
-}
-
-fn resolve_text_propsa<'a>(data: &mut NodeData, _layout: &mut NodeLayout) -> &'a mut TextProps {}
-
-pub trait TextPropsExt: Sized {
-    fn text_props_mut(&mut self) -> &mut TextProps;
-    fn bindings_mut(&mut self) -> &mut Vec<DeferredBinding>;
 
     fn color(mut self, value: impl Into<MaybeSignal<Color>>) -> Self {
-        bind_field(
-            self.text_props_mut(),
-            self.bindings_mut(),
-            value,
-            DirtyFlags::PAINT,
-            |props| &mut props.color,
-            resolve_text_props,
-        );
-
+        let (props, bindings) = self.text_ctx();
+        bind_field(&mut props.color, bindings, value, DirtyFlags::PAINT,
+            |data, _, val| data.kind.as_text_mut().color = val);
         self
     }
 
     fn font_family(mut self, value: impl IntoTextContent) -> Self {
-        let value: MaybeSignal<Arc<str>> = value.into_text_content();
-        bind_field(
-            self.text_props_mut(),
-            self.bindings_mut(),
-            value,
+        let (props, bindings) = self.text_ctx();
+        bind_field(&mut props.font_family, bindings, value.into_text_content(),
             DirtyFlags::PAINT | DirtyFlags::LAYOUT,
-            |props| &mut props.font_family,
-            resolve_text_props,
-        );
+            |data, _, val| data.kind.as_text_mut().font_family = val);
         self
     }
 
     fn font_size(mut self, value: impl Into<MaybeSignal<f32>>) -> Self {
-        bind_field(
-            self.text_props_mut(),
-            self.bindings_mut(),
-            value,
+        let (props, bindings) = self.text_ctx();
+        bind_field(&mut props.font_size, bindings, value,
             DirtyFlags::PAINT | DirtyFlags::LAYOUT,
-            |props| &mut props.font_size,
-            resolve_text_props,
-        );
-
+            |data, _, val| data.kind.as_text_mut().font_size = val);
         self
     }
 
     fn font_weight(mut self, value: impl Into<MaybeSignal<FontWeight>>) -> Self {
-        bind_field(
-            self.text_props_mut(),
-            self.bindings_mut(),
-            value,
+        let (props, bindings) = self.text_ctx();
+        bind_field(&mut props.font_weight, bindings, value,
             DirtyFlags::PAINT | DirtyFlags::LAYOUT,
-            |props| &mut props.font_weight,
-            resolve_text_props,
-        );
-
+            |data, _, val| data.kind.as_text_mut().font_weight = val);
         self
     }
 }
 
 impl TextPropsExt for Text {
-    fn text_props_mut(&mut self) -> &mut TextProps {
-        &mut self.text_props
-    }
-
-    fn bindings_mut(&mut self) -> &mut Vec<DeferredBinding> {
-        &mut self.deferred_bindings
+    fn text_ctx(&mut self) -> (&mut TextProps, &mut Vec<DeferredBinding>) {
+        (&mut self.text_props, &mut self.deferred_bindings)
     }
 }
 
 impl LeafStylePropsExt for Text {
-    fn leaf_style_mut(&mut self) -> &mut LeafStyle {
-        &mut self.layout_style
-    }
-
-    fn bindings_mut(&mut self) -> &mut Vec<DeferredBinding> {
-        &mut self.deferred_bindings
+    fn leaf_ctx(&mut self) -> (&mut LayoutStyle, &mut Vec<DeferredBinding>) {
+        (&mut self.layout_style, &mut self.deferred_bindings)
     }
 }
 
 impl NodePropsExt for Text {
-    fn node_props_mut(&mut self) -> &mut NodeProps {
-        &mut self.node_props
-    }
-
-    fn bindings_mut(&mut self) -> &mut Vec<DeferredBinding> {
-        &mut self.deferred_bindings
+    fn node_ctx(&mut self) -> (&mut NodeProps, &mut Vec<DeferredBinding>) {
+        (&mut self.node_props, &mut self.deferred_bindings)
     }
 }
 
@@ -192,12 +150,12 @@ impl<T: std::fmt::Display + Clone + 'static> IntoTextContent for Signal<T> {
 pub fn text(content: impl IntoTextContent) -> Text {
     (Text {
         node_props: NodeProps::default(),
-        layout_style: LeafStyle::default(),
+        layout_style: LayoutStyle::default(),
         text_props: TextProps::default(),
         deferred_bindings: Vec::new(),
         event_handlers: EventHandlers::default(),
     })
-    .content(content.into_text_content())
+    .content(content)
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Hash, Eq)]

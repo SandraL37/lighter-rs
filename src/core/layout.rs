@@ -6,10 +6,7 @@ use crate::core::{
         NodeArena,
         node::{NodeData, NodeId},
     },
-    layout::{
-        engine::compute_layout,
-        types::{insets::Insets, size::Size},
-    },
+    layout::{engine::compute_layout, types::size::Size},
     reactive::{
         bind::{DeferredBinding, bind_field},
         dirty::DirtyFlags,
@@ -75,7 +72,7 @@ pub struct NodeLayout {
 impl NodeLayout {
     pub fn new(style: LayoutStyle) -> Self {
         Self {
-            style: style,
+            style,
             unrounded: ComputedLayout::default(),
             computed: ComputedLayout::default(),
             cache: LayoutCache::default(),
@@ -89,317 +86,339 @@ pub type UnroundedLayout = taffy::Layout;
 pub type LayoutCache = taffy::Cache;
 
 pub type Dimension = taffy::Dimension;
+pub type DefiniteDimension = taffy::LengthPercentage;
 pub type AvailableSpace = taffy::AvailableSpace;
 pub type FlexDirection = taffy::FlexDirection;
 pub type JustifyContent = taffy::JustifyContent;
 pub type AlignItems = taffy::AlignItems;
 pub type FlexWrap = taffy::FlexWrap;
 
-pub type Margin = Insets<Dimension>;
-pub type Padding = Insets<Dimension>;
-pub type Gap = Size<Dimension>;
+/// Construct a `Dimension` as a percentage of the available space.
+pub fn percent(v: f32) -> Dimension {
+    taffy::style_helpers::percent(v)
+}
+/// Construct a `Dimension` as a fixed pixel length.
+pub fn px(v: f32) -> Dimension {
+    taffy::style_helpers::length(v)
+}
+/// Construct a `Dimension` that sizes to content (`auto`).
+pub fn auto() -> Dimension {
+    taffy::style_helpers::auto()
+}
+
+pub type Margin = taffy::Rect<taffy::LengthPercentageAuto>;
+pub type Padding = taffy::Rect<taffy::LengthPercentage>;
+pub type Gap = Size<DefiniteDimension>;
 
 pub trait ContainerStylePropsExt: Sized {
-    fn container_style_mut(&mut self) -> &mut LayoutStyle;
-    fn bindings_mut(&mut self) -> &mut Vec<DeferredBinding>;
+    fn container_ctx(&mut self) -> (&mut LayoutStyle, &mut Vec<DeferredBinding>);
 
     fn w(mut self, width: impl Into<MaybeSignal<Dimension>>) -> Self {
+        let (style, bindings) = self.container_ctx();
         bind_field(
-            self.container_style_mut(),
-            self.bindings_mut(),
+            &mut style.size.width,
+            bindings,
             width,
             DirtyFlags::LAYOUT,
-            |style| &mut style.size.width,
-            |_, layout| &mut layout.style,
+            |_, layout, val| layout.style.size.width = val,
         );
         self
     }
 
     fn h(mut self, height: impl Into<MaybeSignal<Dimension>>) -> Self {
+        let (style, bindings) = self.container_ctx();
         bind_field(
-            self.container_style_mut(),
-            self.bindings_mut(),
+            &mut style.size.height,
+            bindings,
             height,
             DirtyFlags::LAYOUT,
-            |style| &mut style.size.height,
-            resolve_container_style,
+            |_, layout, val| layout.style.size.height = val,
         );
         self
     }
 
     fn size(mut self, size: impl Into<MaybeSignal<Dimension>>) -> Self {
+        let size: MaybeSignal<Dimension> = size.into();
+        let (style, bindings) = self.container_ctx();
         bind_field(
-            self.container_style_mut(),
-            self.bindings_mut(),
-            size,
+            &mut style.size.width,
+            bindings,
+            size.clone(),
             DirtyFlags::LAYOUT,
-            |style| &mut style.size.width,
-            resolve_container_style,
+            |_, layout, val| layout.style.size.width = val,
         );
         bind_field(
-            self.container_style_mut(),
-            self.bindings_mut(),
+            &mut style.size.height,
+            bindings,
             size,
             DirtyFlags::LAYOUT,
-            |style| &mut style.size.height,
-            resolve_container_style,
+            |_, layout, val| layout.style.size.height = val,
         );
         self
     }
 
     fn max_w(mut self, max_width: impl Into<MaybeSignal<Dimension>>) -> Self {
+        let (style, bindings) = self.container_ctx();
         bind_field(
-            self.container_style_mut(),
-            self.bindings_mut(),
+            &mut style.max_size.width,
+            bindings,
             max_width,
             DirtyFlags::LAYOUT,
-            |style| &mut style.max_size.width,
-            resolve_container_style,
+            |_, layout, val| layout.style.max_size.width = val,
         );
         self
     }
 
     fn max_h(mut self, max_height: impl Into<MaybeSignal<Dimension>>) -> Self {
+        let (style, bindings) = self.container_ctx();
         bind_field(
-            self.container_style_mut(),
-            self.bindings_mut(),
+            &mut style.max_size.height,
+            bindings,
             max_height,
             DirtyFlags::LAYOUT,
-            |style| &mut style.max_size.height,
-            resolve_container_style,
+            |_, layout, val| layout.style.max_size.height = val,
         );
         self
     }
 
     fn max_size(mut self, max_size: impl Into<MaybeSignal<Dimension>>) -> Self {
+        let max_size: MaybeSignal<Dimension> = max_size.into();
+        let (style, bindings) = self.container_ctx();
         bind_field(
-            self.container_style_mut(),
-            self.bindings_mut(),
-            max_size,
+            &mut style.max_size.width,
+            bindings,
+            max_size.clone(),
             DirtyFlags::LAYOUT,
-            |style| &mut style.max_size.width,
-            resolve_container_style,
+            |_, layout, val| layout.style.max_size.width = val,
         );
         bind_field(
-            self.container_style_mut(),
-            self.bindings_mut(),
+            &mut style.max_size.height,
+            bindings,
             max_size,
             DirtyFlags::LAYOUT,
-            |style| &mut style.max_size.height,
-            resolve_container_style,
+            |_, layout, val| layout.style.max_size.height = val,
         );
         self
     }
 
     fn p(mut self, padding: impl Into<MaybeSignal<Padding>>) -> Self {
+        let (style, bindings) = self.container_ctx();
         bind_field(
-            self.container_style_mut(),
-            self.bindings_mut(),
+            &mut style.padding,
+            bindings,
             padding,
             DirtyFlags::LAYOUT,
-            |style| &mut style.padding,
-            resolve_container_style,
+            |_, layout, val| layout.style.padding = val,
         );
         self
     }
 
     fn m(mut self, margin: impl Into<MaybeSignal<Margin>>) -> Self {
+        let (style, bindings) = self.container_ctx();
         bind_field(
-            self.container_style_mut(),
-            self.bindings_mut(),
+            &mut style.margin,
+            bindings,
             margin,
             DirtyFlags::LAYOUT,
-            |style| &mut style.margin,
-            resolve_container_style,
+            |_, layout, val| layout.style.margin = val,
         );
         self
     }
 
     fn align(mut self, align_items: impl Into<MaybeSignal<AlignItems>>) -> Self {
+        let value = align_items.into().map(Some);
+        let (style, bindings) = self.container_ctx();
         bind_field(
-            self.container_style_mut(),
-            self.bindings_mut(),
-            align_items,
+            &mut style.align_items,
+            bindings,
+            value,
             DirtyFlags::LAYOUT,
-            |style| &mut style.align_items,
-            resolve_container_style,
+            |_, layout, val| layout.style.align_items = val,
         );
         self
     }
 
     fn justify(mut self, justify_content: impl Into<MaybeSignal<JustifyContent>>) -> Self {
+        let value = justify_content.into().map(Some);
+        let (style, bindings) = self.container_ctx();
         bind_field(
-            self.container_style_mut(),
-            self.bindings_mut(),
-            justify_content,
+            &mut style.justify_content,
+            bindings,
+            value,
             DirtyFlags::LAYOUT,
-            |style| &mut style.justify_content,
-            resolve_container_style,
+            |_, layout, val| layout.style.justify_content = val,
         );
         self
     }
 
     fn gap_x(mut self, gap: impl Into<MaybeSignal<DefiniteDimension>>) -> Self {
+        let (style, bindings) = self.container_ctx();
         bind_field(
-            self.container_style_mut(),
-            self.bindings_mut(),
+            &mut style.gap.width,
+            bindings,
             gap,
             DirtyFlags::LAYOUT,
-            |style| &mut style.gap.width,
-            resolve_container_style,
+            |_, layout, val| layout.style.gap.width = val,
         );
         self
     }
 
     fn gap_y(mut self, gap: impl Into<MaybeSignal<DefiniteDimension>>) -> Self {
+        let (style, bindings) = self.container_ctx();
         bind_field(
-            self.container_style_mut(),
-            self.bindings_mut(),
+            &mut style.gap.height,
+            bindings,
             gap,
             DirtyFlags::LAYOUT,
-            |style| &mut style.gap.height,
-            resolve_container_style,
+            |_, layout, val| layout.style.gap.height = val,
         );
         self
     }
 
     fn gap(mut self, gap: impl Into<MaybeSignal<DefiniteDimension>>) -> Self {
+        let gap: MaybeSignal<DefiniteDimension> = gap.into();
+        let (style, bindings) = self.container_ctx();
         bind_field(
-            self.container_style_mut(),
-            self.bindings_mut(),
+            &mut style.gap.width,
+            bindings,
+            gap.clone(),
+            DirtyFlags::LAYOUT,
+            |_, layout, val| layout.style.gap.width = val,
+        );
+        bind_field(
+            &mut style.gap.height,
+            bindings,
             gap,
             DirtyFlags::LAYOUT,
-            |style| &mut style.gap.width,
-            resolve_container_style,
+            |_, layout, val| layout.style.gap.height = val,
         );
         self
     }
 
     fn flex_direction(mut self, direction: impl Into<MaybeSignal<FlexDirection>>) -> Self {
+        let (style, bindings) = self.container_ctx();
         bind_field(
-            self.container_style_mut(),
-            self.bindings_mut(),
+            &mut style.flex_direction,
+            bindings,
             direction,
             DirtyFlags::LAYOUT,
-            |style| &mut style.flex_direction,
-            resolve_container_style,
+            |_, layout, val| layout.style.flex_direction = val,
         );
         self
     }
 
     fn flex_wrap(mut self, wrap: impl Into<MaybeSignal<FlexWrap>>) -> Self {
+        let (style, bindings) = self.container_ctx();
         bind_field(
-            self.container_style_mut(),
-            self.bindings_mut(),
+            &mut style.flex_wrap,
+            bindings,
             wrap,
             DirtyFlags::LAYOUT,
-            |style| &mut style.flex_wrap,
-            resolve_container_style,
+            |_, layout, val| layout.style.flex_wrap = val,
         );
         self
     }
 }
 
 pub trait LeafStylePropsExt: Sized {
-    fn leaf_style_mut(&mut self) -> &mut LayoutStyle;
-    fn bindings_mut(&mut self) -> &mut Vec<DeferredBinding>;
+    fn leaf_ctx(&mut self) -> (&mut LayoutStyle, &mut Vec<DeferredBinding>);
 
     fn w(mut self, width: impl Into<MaybeSignal<Dimension>>) -> Self {
+        let (style, bindings) = self.leaf_ctx();
         bind_field(
-            self.leaf_style_mut(),
-            self.bindings_mut(),
+            &mut style.size.width,
+            bindings,
             width,
             DirtyFlags::LAYOUT,
-            |style| &mut style.size.width,
-            resolve_leaf_style,
+            |_, layout, val| layout.style.size.width = val,
         );
         self
     }
 
     fn h(mut self, height: impl Into<MaybeSignal<Dimension>>) -> Self {
+        let (style, bindings) = self.leaf_ctx();
         bind_field(
-            self.leaf_style_mut(),
-            self.bindings_mut(),
+            &mut style.size.height,
+            bindings,
             height,
             DirtyFlags::LAYOUT,
-            |style| &mut style.size.height,
-            resolve_leaf_style,
+            |_, layout, val| layout.style.size.height = val,
         );
         self
     }
 
     fn size(mut self, size: impl Into<MaybeSignal<Dimension>>) -> Self {
+        let size: MaybeSignal<Dimension> = size.into();
+        let (style, bindings) = self.leaf_ctx();
         bind_field(
-            self.leaf_style_mut(),
-            self.bindings_mut(),
-            size,
+            &mut style.size.width,
+            bindings,
+            size.clone(),
             DirtyFlags::LAYOUT,
-            |style| &mut style.size.width,
-            resolve_leaf_style,
+            |_, layout, val| layout.style.size.width = val,
         );
         bind_field(
-            self.leaf_style_mut(),
-            self.bindings_mut(),
+            &mut style.size.height,
+            bindings,
             size,
             DirtyFlags::LAYOUT,
-            |style| &mut style.size.height,
-            resolve_leaf_style,
+            |_, layout, val| layout.style.size.height = val,
         );
         self
     }
 
     fn max_w(mut self, max_width: impl Into<MaybeSignal<Dimension>>) -> Self {
+        let (style, bindings) = self.leaf_ctx();
         bind_field(
-            self.leaf_style_mut(),
-            self.bindings_mut(),
+            &mut style.max_size.width,
+            bindings,
             max_width,
             DirtyFlags::LAYOUT,
-            |style| &mut style.max_size.width,
-            resolve_leaf_style,
+            |_, layout, val| layout.style.max_size.width = val,
         );
         self
     }
 
     fn max_h(mut self, max_height: impl Into<MaybeSignal<Dimension>>) -> Self {
+        let (style, bindings) = self.leaf_ctx();
         bind_field(
-            self.leaf_style_mut(),
-            self.bindings_mut(),
+            &mut style.max_size.height,
+            bindings,
             max_height,
             DirtyFlags::LAYOUT,
-            |style| &mut style.max_size.height,
-            resolve_leaf_style,
+            |_, layout, val| layout.style.max_size.height = val,
         );
         self
     }
 
     fn max_size(mut self, max_size: impl Into<MaybeSignal<Dimension>>) -> Self {
+        let max_size: MaybeSignal<Dimension> = max_size.into();
+        let (style, bindings) = self.leaf_ctx();
         bind_field(
-            self.leaf_style_mut(),
-            self.bindings_mut(),
-            max_size,
+            &mut style.max_size.width,
+            bindings,
+            max_size.clone(),
             DirtyFlags::LAYOUT,
-            |style| &mut style.max_size.width,
-            resolve_leaf_style,
+            |_, layout, val| layout.style.max_size.width = val,
         );
         bind_field(
-            self.leaf_style_mut(),
-            self.bindings_mut(),
+            &mut style.max_size.height,
+            bindings,
             max_size,
             DirtyFlags::LAYOUT,
-            |style| &mut style.max_size.height,
-            resolve_leaf_style,
+            |_, layout, val| layout.style.max_size.height = val,
         );
         self
     }
 
     fn m(mut self, margin: impl Into<MaybeSignal<Margin>>) -> Self {
+        let (style, bindings) = self.leaf_ctx();
         bind_field(
-            self.leaf_style_mut(),
-            self.bindings_mut(),
+            &mut style.margin,
+            bindings,
             margin,
             DirtyFlags::LAYOUT,
-            |style| &mut style.margin,
-            resolve_leaf_style,
+            |_, layout, val| layout.style.margin = val,
         );
         self
     }

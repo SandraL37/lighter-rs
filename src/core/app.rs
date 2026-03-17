@@ -9,7 +9,7 @@ use windows::{
 };
 
 use crate::core::{
-    app::window::{WindowState, Window, wnd_proc},
+    app::window::{Window, WindowState, wnd_proc},
     error::*,
     render::d2d::D2DRendererFactory,
 };
@@ -58,7 +58,7 @@ impl App {
     pub fn run(&self) -> Result<()> {
         let mut msg = MSG::default();
         while unsafe { GetMessageW(&mut msg, None, 0, 0).0 } > 0 {
-            unsafe { TranslateMessage(&msg) }; // TODO: handle error
+            let _ = unsafe { TranslateMessage(&msg) }; // TODO: handle error
             unsafe { DispatchMessageW(&msg) };
         }
         Ok(())

@@ -2,18 +2,11 @@ use std::sync::Arc;
 
 use crate::{
     core::{
-        arena::{
-            NodeArena,
-            node::{EventHandlers, NodeData, NodeId, NodeKind, NodeProps, NodePropsExt},
-        },
+        arena::{ NodeArena, node::{ EventHandlers, NodeId, NodeKind, NodeProps, NodePropsExt } },
         error::*,
         event::MouseEvents,
-        layout::{ContainerStylePropsExt, LayoutStyle, NodeLayout},
-        reactive::{
-            bind::{DeferredBinding, bind_field},
-            dirty::DirtyFlags,
-            signal::MaybeSignal,
-        },
+        layout::{ ContainerStylePropsExt, LayoutStyle },
+        reactive::{ bind::{ DeferredBinding, bind_field }, dirty::DirtyFlags, signal::MaybeSignal },
         style::Color,
     },
     elements::Element,
@@ -38,39 +31,22 @@ pub trait ChildrenExt: Sized {
     }
 }
 
-fn resolve_div<'a>(data: &'a mut NodeData, layout: &'a mut NodeLayout) -> &'a mut DivProps {
-    match &mut data.kind {
-        NodeKind::Div(props) => Arc::make_mut(props).expect("multiple references to div props"),
-        _ => unreachable!(),
-    }
-}
-
 pub trait DivPropsExt: Sized {
-    fn div_props_mut(&mut self) -> &mut DivProps;
-    fn bindings_mut(&mut self) -> &mut Vec<DeferredBinding>;
+    fn div_ctx(&mut self) -> (&mut DivProps, &mut Vec<DeferredBinding>);
 
     fn bg(mut self, color: impl Into<MaybeSignal<Color>>) -> Self {
-        bind_field(
-            self.div_props_mut(),
-            self.bindings_mut(),
-            color,
-            DirtyFlags::PAINT,
-            |props| &mut props.background_color,
-            resolve_div,
-        );
+        let (props, bindings) = self.div_ctx();
+        bind_field(&mut props.background_color, bindings, color, DirtyFlags::PAINT, |data, _, val| {
+            data.kind.as_div_mut().background_color = val;
+        });
         self
     }
 
     fn rounded(mut self, radius: impl Into<MaybeSignal<f32>>) -> Self {
-        bind_field(
-            self.div_props_mut(),
-            self.bindings_mut(),
-            radius,
-            DirtyFlags::PAINT,
-            |p| &mut p.corner_radius,
-            resolve_div,
-        );
-
+        let (props, bindings) = self.div_ctx();
+        bind_field(&mut props.corner_radius, bindings, radius, DirtyFlags::PAINT, |data, _, val| {
+            data.kind.as_div_mut().corner_radius = val;
+        });
         self
     }
 }
@@ -97,7 +73,7 @@ impl Element for Div {
             self.node_props,
             parent,
             self.layout_props,
-            self.event_handlers,
+            self.event_handlers
         )?;
 
         for binding in self.deferred_bindings {
@@ -113,32 +89,20 @@ impl Element for Div {
 }
 
 impl ContainerStylePropsExt for Div {
-    fn container_style_mut(&mut self) -> &mut LayoutStyle {
-        &mut self.layout_props
-    }
-
-    fn bindings_mut(&mut self) -> &mut Vec<DeferredBinding> {
-        &mut self.deferred_bindings
+    fn container_ctx(&mut self) -> (&mut LayoutStyle, &mut Vec<DeferredBinding>) {
+        (&mut self.layout_props, &mut self.deferred_bindings)
     }
 }
 
 impl NodePropsExt for Div {
-    fn node_props_mut(&mut self) -> &mut NodeProps {
-        &mut self.node_props
-    }
-
-    fn bindings_mut(&mut self) -> &mut Vec<DeferredBinding> {
-        &mut self.deferred_bindings
+    fn node_ctx(&mut self) -> (&mut NodeProps, &mut Vec<DeferredBinding>) {
+        (&mut self.node_props, &mut self.deferred_bindings)
     }
 }
 
 impl DivPropsExt for Div {
-    fn div_props_mut(&mut self) -> &mut DivProps {
-        &mut self.div_props
-    }
-
-    fn bindings_mut(&mut self) -> &mut Vec<DeferredBinding> {
-        &mut self.deferred_bindings
+    fn div_ctx(&mut self) -> (&mut DivProps, &mut Vec<DeferredBinding>) {
+        (&mut self.div_props, &mut self.deferred_bindings)
     }
 }
 

@@ -1,3 +1,5 @@
+use std::rc::Rc;
+
 use crate::core::{
     arena::node::{ NodeData, NodeId },
     layout::NodeLayout,
@@ -12,36 +14,31 @@ impl std::fmt::Debug for DeferredBinding {
     }
 }
 
-pub fn bind_field<P: 'static, T: Clone + 'static>(
-    props: &mut P,
+/// Initializes `current` to the value and, if reactive, defers a subscription that
+/// pushes a `PendingUpdate` (calling `apply`) whenever the signal changes.
+pub fn bind_field<T: Clone + 'static>(
+    current: &mut T,
     bindings: &mut Vec<DeferredBinding>,
     value: impl Into<MaybeSignal<T>>,
     flags: DirtyFlags,
-    accessor: fn(&mut P) -> &mut T,
-    resolve: fn(&mut NodeData, &mut NodeLayout) -> &'static mut P
+    apply: impl Fn(&mut NodeData, &mut NodeLayout, T) + 'static,
 ) {
     match value.into() {
-        MaybeSignal::Static(v) => {
-            *accessor(props) = v;
-        }
+        MaybeSignal::Static(v) => *current = v,
         MaybeSignal::Signal(sig) => {
-            *accessor(props) = sig.get();
-            bindings.push(
-                DeferredBinding(
-                    Box::new(move |node_id| {
-                        sig.subscribe(move || {
-                            let val = sig.get();
-                            Runtime::push_update(PendingUpdate {
-                                node_id,
-                                flags,
-                                apply: Box::new(move |data, layout| {
-                                    *accessor(resolve(data, layout)) = val;
-                                }),
-                            });
-                        });
-                    })
-                )
-            );
+            *current = sig.get();
+            let apply = Rc::new(apply);
+            bindings.push(DeferredBinding(Box::new(move |node_id| {
+                sig.subscribe(move || {
+                    let val = sig.get();
+                    let apply = apply.clone();
+                    Runtime::push_update(PendingUpdate {
+                        node_id,
+                        flags,
+                        apply: Box::new(move |data, layout| apply(data, layout, val)),
+                    });
+                });
+            })));
         }
     }
 }

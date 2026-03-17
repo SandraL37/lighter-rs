@@ -3,7 +3,7 @@ use taffy::{compute_flexbox_layout, compute_leaf_layout};
 
 use crate::core::{
     arena::node::{NodeId, NodeKind},
-    layout::{types::point::Point, *},
+    layout::{types::{insets::Insets, point::Point}, *},
     reactive::dirty::DirtyFlags,
 };
 
