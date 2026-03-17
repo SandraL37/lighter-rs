@@ -1,6 +1,6 @@
 use crate::core::{
     arena::{NodeArena, node::NodeId},
-    layout::{Point, Rect},
+    layout::types::{point::Point, rect::Rect},
 };
 
 pub fn hit_test(arena: &NodeArena, root: NodeId, point: Point<f32>) -> Vec<NodeId> {

@@ -4,7 +4,7 @@ use std::rc::Rc;
 
 use crate::core::{
     arena::node::EventHandlers,
-    layout::{Point, Size},
+    layout::types::{point::Point, size::Size},
 };
 
 #[derive(Debug, Clone, Copy)]

@@ -3,8 +3,8 @@ use std::sync::Arc;
 use crate::{
     core::{
         error::*,
-        layout::{AvailableSpace, Rect, Size},
-        style::{Color, Transform},
+        layout::{ AvailableSpace, types::{ rect::Rect, size::Size } },
+        style::{ Color, Transform },
     },
     elements::text::TextProps,
 };
@@ -46,6 +46,6 @@ pub trait Renderer: Sized {
     fn measure_text(
         &mut self,
         text_props: &TextProps,
-        available_size: Size<AvailableSpace>,
+        available_size: Size<AvailableSpace>
     ) -> Result<Size<f32>>;
 }

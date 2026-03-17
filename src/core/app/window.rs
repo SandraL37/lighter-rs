@@ -3,7 +3,7 @@ use crate::{
         app::engine::Engine,
         error::*,
         event::{EngineEvent, MouseButton},
-        layout::{Point, Size},
+        layout::types::{point::Point, size::Size},
         render::d2d::{D2DRenderer, D2DRendererFactory},
     },
     elements::{Element, div::div},
@@ -232,7 +232,11 @@ impl Window {
         self
     }
 
-    pub fn build(self, hinstance: HINSTANCE, factory: &D2DRendererFactory) -> Result<Box<WindowState>> {
+    pub fn build(
+        self,
+        hinstance: HINSTANCE,
+        factory: &D2DRendererFactory,
+    ) -> Result<Box<WindowState>> {
         WindowState::build(
             hinstance,
             self.title,

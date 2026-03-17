@@ -19,7 +19,10 @@ use windows_numerics::{Matrix3x2, Vector2};
 use crate::{
     core::{
         error::*,
-        layout::{AvailableSpace, Point, Rect, Size},
+        layout::{
+            AvailableSpace,
+            types::{point::Point, rect::Rect, size::Size},
+        },
         render::{RenderCommand, Renderer, d2d::cache::D2DCache},
         style::Color,
     },

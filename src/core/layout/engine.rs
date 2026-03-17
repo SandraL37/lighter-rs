@@ -3,14 +3,9 @@ use taffy::{compute_flexbox_layout, compute_leaf_layout};
 
 use crate::core::{
     arena::node::{NodeId, NodeKind},
-    layout::*,
+    layout::{types::point::Point, *},
     reactive::dirty::DirtyFlags,
 };
-
-pub type LayoutStyle = taffy::Style;
-pub type ComputedLayout = taffy::Layout;
-pub type UnroundedLayout = taffy::Layout;
-pub type LayoutCache = taffy::Cache;
 
 pub fn compute_layout<R: Renderer>(
     layout_context: &mut LayoutContext<R>,
@@ -188,62 +183,6 @@ impl<'a, R: Renderer> taffy::LayoutFlexboxContainer for LayoutContext<'a, R> {
     }
 }
 
-impl From<Dimension> for taffy::Dimension {
-    #[inline(always)]
-    fn from(dimension: Dimension) -> Self {
-        match dimension {
-            Dimension::Auto => taffy::Dimension::auto(),
-            Dimension::Pixels(pixels) => taffy::Dimension::length(pixels),
-            Dimension::Percent(percent) => taffy::Dimension::percent(percent),
-        }
-    }
-}
-
-impl From<DefiniteDimension> for taffy::LengthPercentage {
-    #[inline(always)]
-    fn from(dimension: DefiniteDimension) -> Self {
-        match dimension {
-            DefiniteDimension::Pixels(pixels) => taffy::LengthPercentage::length(pixels),
-            DefiniteDimension::Percent(percent) => taffy::LengthPercentage::percent(percent),
-        }
-    }
-}
-
-impl From<DefiniteDimensionAuto> for taffy::LengthPercentageAuto {
-    #[inline(always)]
-    fn from(dimension: DefiniteDimensionAuto) -> Self {
-        match dimension {
-            DefiniteDimensionAuto::Auto => taffy::LengthPercentageAuto::auto(),
-            DefiniteDimensionAuto::Pixels(pixels) => taffy::LengthPercentageAuto::length(pixels),
-            DefiniteDimensionAuto::Percent(percent) => {
-                taffy::LengthPercentageAuto::percent(percent)
-            }
-        }
-    }
-}
-
-impl From<AvailableSpace> for taffy::AvailableSpace {
-    #[inline(always)]
-    fn from(value: AvailableSpace) -> Self {
-        match value {
-            AvailableSpace::Definite(pixels) => taffy::AvailableSpace::Definite(pixels),
-            AvailableSpace::MinContent => taffy::AvailableSpace::MinContent,
-            AvailableSpace::MaxContent => taffy::AvailableSpace::MaxContent,
-        }
-    }
-}
-
-impl From<taffy::AvailableSpace> for AvailableSpace {
-    #[inline(always)]
-    fn from(value: taffy::AvailableSpace) -> Self {
-        match value {
-            taffy::AvailableSpace::Definite(pixels) => AvailableSpace::Definite(pixels),
-            taffy::AvailableSpace::MinContent => AvailableSpace::MinContent,
-            taffy::AvailableSpace::MaxContent => AvailableSpace::MaxContent,
-        }
-    }
-}
-
 impl<T: Into<U>, U> From<Insets<T>> for taffy::Rect<U> {
     #[inline(always)]
     fn from(insets: Insets<T>) -> Self {
@@ -282,83 +221,6 @@ impl<T: Into<U>, U> From<Size<T>> for taffy::Size<U> {
         Self {
             width: rect.width.into(),
             height: rect.height.into(),
-        }
-    }
-}
-
-impl From<FlexDirection> for taffy::FlexDirection {
-    #[inline(always)]
-    fn from(direction: FlexDirection) -> Self {
-        match direction {
-            FlexDirection::Row => taffy::FlexDirection::Row,
-            FlexDirection::Column => taffy::FlexDirection::Column,
-            FlexDirection::RowReverse => taffy::FlexDirection::RowReverse,
-            FlexDirection::ColumnReverse => taffy::FlexDirection::ColumnReverse,
-        }
-    }
-}
-
-impl From<JustifyContent> for taffy::JustifyContent {
-    #[inline(always)]
-    fn from(justify_content: JustifyContent) -> Self {
-        match justify_content {
-            JustifyContent::Start => taffy::JustifyContent::FlexStart,
-            JustifyContent::Center => taffy::JustifyContent::Center,
-            JustifyContent::End => taffy::JustifyContent::FlexEnd,
-            JustifyContent::SpaceBetween => taffy::JustifyContent::SpaceBetween,
-            JustifyContent::SpaceAround => taffy::JustifyContent::SpaceAround,
-            JustifyContent::SpaceEvenly => taffy::JustifyContent::SpaceEvenly,
-        }
-    }
-}
-
-impl From<AlignItems> for taffy::AlignItems {
-    #[inline(always)]
-    fn from(align_items: AlignItems) -> Self {
-        match align_items {
-            AlignItems::Start => taffy::AlignItems::FlexStart,
-            AlignItems::Center => taffy::AlignItems::Center,
-            AlignItems::End => taffy::AlignItems::FlexEnd,
-            AlignItems::Stretch => taffy::AlignItems::Stretch,
-            AlignItems::Baseline => taffy::AlignItems::Baseline,
-        }
-    }
-}
-
-impl From<FlexWrap> for taffy::FlexWrap {
-    #[inline(always)]
-    fn from(flex_wrap: FlexWrap) -> Self {
-        match flex_wrap {
-            FlexWrap::NoWrap => taffy::FlexWrap::NoWrap,
-            FlexWrap::Wrap => taffy::FlexWrap::Wrap,
-            FlexWrap::WrapReverse => taffy::FlexWrap::WrapReverse,
-        }
-    }
-}
-
-impl From<LayoutKind> for taffy::Style {
-    fn from(style: LayoutKind) -> Self {
-        match style {
-            LayoutKind::Container(container) => Self {
-                size: container.size.into(),
-                min_size: container.min_size.into(),
-                max_size: container.max_size.into(),
-                padding: container.padding.into(),
-                margin: container.margin.into(),
-                gap: container.gap.into(),
-                flex_direction: container.flex_direction.into(),
-                justify_content: Some(container.justify_content.into()), // TODO: check if this should be made option or not
-                align_items: Some(container.align_items.into()),
-                flex_wrap: container.flex_wrap.into(),
-                ..Default::default()
-            },
-            LayoutKind::Leaf(leaf) => Self {
-                size: leaf.size.into(),
-                min_size: leaf.min_size.into(),
-                max_size: leaf.max_size.into(),
-                margin: leaf.margin.into(),
-                ..Default::default()
-            },
         }
     }
 }

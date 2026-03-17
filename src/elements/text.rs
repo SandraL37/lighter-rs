@@ -1,10 +1,17 @@
 use crate::{
     core::{
-        arena::{ NodeArena, node::{ EventHandlers, NodeData, NodeId, NodeKind, NodeProps, NodePropsExt } },
+        arena::{
+            NodeArena,
+            node::{EventHandlers, NodeData, NodeId, NodeKind, NodeProps, NodePropsExt},
+        },
         error::*,
         event::MouseEvents,
-        layout::{ LeafStyle, LeafStylePropsExt, NodeLayout },
-        reactive::{ bind::{ DeferredBinding, bind_field }, dirty::DirtyFlags, signal::{MaybeSignal, Signal, signal} },
+        layout::{LeafStyle, LeafStylePropsExt, NodeLayout},
+        reactive::{
+            bind::{DeferredBinding, bind_field},
+            dirty::DirtyFlags,
+            signal::{MaybeSignal, Signal, signal},
+        },
         style::Color,
     },
     elements::Element,
@@ -48,19 +55,14 @@ impl Text {
             value,
             DirtyFlags::PAINT | DirtyFlags::LAYOUT,
             |props| &mut props.content,
-            resolve_text_props
+            resolve_text_props,
         );
 
         self
     }
 }
 
-fn resolve_text_props(data: &mut NodeData, _layout: &mut NodeLayout) -> &'static mut TextProps {
-    match &mut data.kind {
-        NodeKind::Text(props) => Arc::make_mut(&mut props).expect("multiple references to text props"),
-        _ => unreachable!(),
-    }
-}
+fn resolve_text_propsa<'a>(data: &mut NodeData, _layout: &mut NodeLayout) -> &'a mut TextProps {}
 
 pub trait TextPropsExt: Sized {
     fn text_props_mut(&mut self) -> &mut TextProps;
@@ -73,7 +75,7 @@ pub trait TextPropsExt: Sized {
             value,
             DirtyFlags::PAINT,
             |props| &mut props.color,
-            resolve_text_props
+            resolve_text_props,
         );
 
         self
@@ -87,7 +89,7 @@ pub trait TextPropsExt: Sized {
             value,
             DirtyFlags::PAINT | DirtyFlags::LAYOUT,
             |props| &mut props.font_family,
-            resolve_text_props
+            resolve_text_props,
         );
         self
     }
@@ -99,7 +101,7 @@ pub trait TextPropsExt: Sized {
             value,
             DirtyFlags::PAINT | DirtyFlags::LAYOUT,
             |props| &mut props.font_size,
-            resolve_text_props
+            resolve_text_props,
         );
 
         self
@@ -112,7 +114,7 @@ pub trait TextPropsExt: Sized {
             value,
             DirtyFlags::PAINT | DirtyFlags::LAYOUT,
             |props| &mut props.font_weight,
-            resolve_text_props
+            resolve_text_props,
         );
 
         self
@@ -156,7 +158,7 @@ impl Element for Text {
             self.node_props,
             parent,
             self.layout_style,
-            self.event_handlers
+            self.event_handlers,
         )?;
 
         for binding in self.deferred_bindings {
@@ -194,7 +196,8 @@ pub fn text(content: impl IntoTextContent) -> Text {
         text_props: TextProps::default(),
         deferred_bindings: Vec::new(),
         event_handlers: EventHandlers::default(),
-    }).content(content.into_text_content())
+    })
+    .content(content.into_text_content())
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Hash, Eq)]

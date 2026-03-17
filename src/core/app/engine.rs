@@ -9,10 +9,11 @@ use crate::{
         },
         error::*,
         event::{EngineEvent, MouseButton, hit_test::hit_test},
-        layout::{AvailableSpace, LayoutContext, Point, Rect, Size},
-        reactive::{
-            dirty::DirtyFlags, runtime::Runtime,
+        layout::{
+            AvailableSpace, LayoutContext,
+            types::{point::Point, rect::Rect, size::Size},
         },
+        reactive::{dirty::DirtyFlags, runtime::Runtime},
         render::{RenderCommand, Renderer},
         style::Transform,
     },

@@ -4,11 +4,11 @@ use crate::{
     core::{
         arena::{
             NodeArena,
-            node::{ EventHandlers, NodeData, NodeId, NodeKind, NodeProps, NodePropsExt },
+            node::{EventHandlers, NodeData, NodeId, NodeKind, NodeProps, NodePropsExt},
         },
         error::*,
         event::MouseEvents,
-        layout::{ ContainerStyle, ContainerStylePropsExt, NodeLayout },
+        layout::{ContainerStylePropsExt, LayoutStyle, NodeLayout},
         reactive::{
             bind::{DeferredBinding, bind_field},
             dirty::DirtyFlags,
@@ -22,7 +22,7 @@ use crate::{
 #[derive(Debug)]
 pub struct Div {
     node_props: NodeProps,
-    layout_props: ContainerStyle,
+    layout_props: LayoutStyle,
     div_props: DivProps,
     children: Vec<Box<dyn Element>>,
     deferred_bindings: Vec<DeferredBinding>,
@@ -56,7 +56,7 @@ pub trait DivPropsExt: Sized {
             color,
             DirtyFlags::PAINT,
             |props| &mut props.background_color,
-            resolve_div
+            resolve_div,
         );
         self
     }
@@ -68,7 +68,7 @@ pub trait DivPropsExt: Sized {
             radius,
             DirtyFlags::PAINT,
             |p| &mut p.corner_radius,
-            resolve_div
+            resolve_div,
         );
 
         self
@@ -91,17 +91,13 @@ impl Default for DivProps {
 }
 
 impl Element for Div {
-    fn build(
-        self: Box<Self>,
-        arena: &mut NodeArena,
-        parent: Option<NodeId>
-    ) -> Result<NodeId> {
+    fn build(self: Box<Self>, arena: &mut NodeArena, parent: Option<NodeId>) -> Result<NodeId> {
         let id = arena.create_node(
             NodeKind::Div(Arc::new(self.div_props)),
             self.node_props,
             parent,
             self.layout_props,
-            self.event_handlers
+            self.event_handlers,
         )?;
 
         for binding in self.deferred_bindings {
@@ -117,10 +113,10 @@ impl Element for Div {
 }
 
 impl ContainerStylePropsExt for Div {
-    fn container_style_mut(&mut self) -> &mut ContainerStyle {
+    fn container_style_mut(&mut self) -> &mut LayoutStyle {
         &mut self.layout_props
     }
-    
+
     fn bindings_mut(&mut self) -> &mut Vec<DeferredBinding> {
         &mut self.deferred_bindings
     }
@@ -130,7 +126,7 @@ impl NodePropsExt for Div {
     fn node_props_mut(&mut self) -> &mut NodeProps {
         &mut self.node_props
     }
-    
+
     fn bindings_mut(&mut self) -> &mut Vec<DeferredBinding> {
         &mut self.deferred_bindings
     }
@@ -155,7 +151,7 @@ impl ChildrenExt for Div {
 pub fn div() -> Div {
     Div {
         node_props: NodeProps::default(),
-        layout_props: ContainerStyle::default(),
+        layout_props: LayoutStyle::default(),
         children: Vec::new(),
         div_props: DivProps::default(),
         deferred_bindings: Vec::new(),
