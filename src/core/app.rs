@@ -9,19 +9,19 @@ use windows::{
 };
 
 use crate::core::{
-    app::window::{Window, WindowBuilder, wnd_proc},
+    app::window::{WindowState, Window, wnd_proc},
     error::*,
     render::d2d::D2DRendererFactory,
 };
 
 // TODO: abstract more
-pub struct Application {
+pub struct App {
     hinstance: HINSTANCE,
-    windows: Vec<Box<Window>>,
+    windows: Vec<Box<WindowState>>,
     factory: D2DRendererFactory,
 }
 
-impl Application {
+impl App {
     pub fn new() -> Result<Self> {
         let hinstance = unsafe { GetModuleHandleW(None)?.into() };
 
@@ -49,21 +49,22 @@ impl Application {
         })
     }
 
-    pub fn add_window(&mut self, window: WindowBuilder) -> Result<()> {
+    pub fn add(mut self, window: Window) -> Result<Self> {
         let window = window.build(self.hinstance, &self.factory)?;
         self.windows.push(window);
-        Ok(())
+        Ok(self)
     }
 
-    pub fn run(&self) {
+    pub fn run(&self) -> Result<()> {
         let mut msg = MSG::default();
         while unsafe { GetMessageW(&mut msg, None, 0, 0).0 } > 0 {
             unsafe { TranslateMessage(&msg) }; // TODO: handle error
             unsafe { DispatchMessageW(&msg) };
         }
+        Ok(())
     }
 }
 
-pub fn application() -> Result<Application> {
-    Application::new()
+pub fn app() -> Result<App> {
+    App::new()
 }

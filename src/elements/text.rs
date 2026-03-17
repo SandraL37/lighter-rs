@@ -1,24 +1,16 @@
 use crate::{
     core::{
-        arena::{
-            NodeArena,
-            node::{EventHandlers, NodeId, NodeKind, NodeProps, NodePropsExt},
-        },
+        arena::{ NodeArena, node::{ EventHandlers, NodeData, NodeId, NodeKind, NodeProps, NodePropsExt } },
         error::*,
         event::MouseEvents,
-        layout::{LeafStyle, LeafStylePropsExt},
-        reactive::{
-            cx::{Cx, DeferredBinding, ReactivePropsExt},
-            dirty::DirtyFlags,
-            signal::{Reactive, ReadSignal},
-        },
+        layout::{ LeafStyle, LeafStylePropsExt, NodeLayout },
+        reactive::{ bind::{ DeferredBinding, bind_field }, dirty::DirtyFlags, signal::{MaybeSignal, Signal, signal} },
         style::Color,
     },
     elements::Element,
 };
 use std::sync::Arc;
 
-#[derive(Debug)]
 pub struct Text {
     node_props: NodeProps,
     layout_style: LeafStyle,
@@ -49,80 +41,78 @@ impl Default for TextProps {
 }
 
 impl Text {
-    fn content(mut self, value: impl Into<Reactive<Arc<str>>>) -> Self {
-        self.bind(
+    fn content(mut self, value: impl Into<MaybeSignal<Arc<str>>>) -> Self {
+        bind_field(
+            &mut self.text_props,
+            &mut self.deferred_bindings,
             value,
-            &mut |this, v| {
-                this.text_props_mut().content = v;
-            },
             DirtyFlags::PAINT | DirtyFlags::LAYOUT,
-            |data, _, v| {
-                data.kind.as_text_mut().content = v;
-            },
+            |props| &mut props.content,
+            resolve_text_props
         );
 
         self
     }
 }
 
-pub trait TextPropsExt: ReactivePropsExt + LeafStylePropsExt + NodePropsExt {
-    fn text_props_mut(&mut self) -> &mut TextProps;
+fn resolve_text_props(data: &mut NodeData, _layout: &mut NodeLayout) -> &'static mut TextProps {
+    match &mut data.kind {
+        NodeKind::Text(props) => Arc::make_mut(&mut props).expect("multiple references to text props"),
+        _ => unreachable!(),
+    }
+}
 
-    fn color(mut self, value: impl Into<Reactive<Color>>) -> Self {
-        self.bind(
+pub trait TextPropsExt: Sized {
+    fn text_props_mut(&mut self) -> &mut TextProps;
+    fn bindings_mut(&mut self) -> &mut Vec<DeferredBinding>;
+
+    fn color(mut self, value: impl Into<MaybeSignal<Color>>) -> Self {
+        bind_field(
+            self.text_props_mut(),
+            self.bindings_mut(),
             value,
-            &mut |this, v| {
-                this.text_props_mut().color = v;
-            },
             DirtyFlags::PAINT,
-            |data, _, v| {
-                data.kind.as_text_mut().color = v;
-            },
+            |props| &mut props.color,
+            resolve_text_props
         );
 
         self
     }
 
     fn font_family(mut self, value: impl IntoTextContent) -> Self {
-        let value: Reactive<Arc<str>> = value.into_text_content();
-        self.bind(
+        let value: MaybeSignal<Arc<str>> = value.into_text_content();
+        bind_field(
+            self.text_props_mut(),
+            self.bindings_mut(),
             value,
-            &mut |this, v| {
-                this.text_props_mut().font_family = v;
-            },
             DirtyFlags::PAINT | DirtyFlags::LAYOUT,
-            |data, _, v| {
-                data.kind.as_text_mut().font_family = v;
-            },
+            |props| &mut props.font_family,
+            resolve_text_props
         );
         self
     }
 
-    fn font_size(mut self, value: impl Into<Reactive<f32>>) -> Self {
-        self.bind(
+    fn font_size(mut self, value: impl Into<MaybeSignal<f32>>) -> Self {
+        bind_field(
+            self.text_props_mut(),
+            self.bindings_mut(),
             value,
-            &mut |this, v| {
-                this.text_props_mut().font_size = v;
-            },
             DirtyFlags::PAINT | DirtyFlags::LAYOUT,
-            |data, _, v| {
-                data.kind.as_text_mut().font_size = v;
-            },
+            |props| &mut props.font_size,
+            resolve_text_props
         );
 
         self
     }
 
-    fn font_weight(mut self, value: impl Into<Reactive<FontWeight>>) -> Self {
-        self.bind(
+    fn font_weight(mut self, value: impl Into<MaybeSignal<FontWeight>>) -> Self {
+        bind_field(
+            self.text_props_mut(),
+            self.bindings_mut(),
             value,
-            &mut |this, v| {
-                this.text_props_mut().font_weight = v;
-            },
             DirtyFlags::PAINT | DirtyFlags::LAYOUT,
-            |data, _, v| {
-                data.kind.as_text_mut().font_weight = v;
-            },
+            |props| &mut props.font_weight,
+            resolve_text_props
         );
 
         self
@@ -133,10 +123,8 @@ impl TextPropsExt for Text {
     fn text_props_mut(&mut self) -> &mut TextProps {
         &mut self.text_props
     }
-}
 
-impl ReactivePropsExt for Text {
-    fn deferred_bindings(&mut self) -> &mut Vec<DeferredBinding> {
+    fn bindings_mut(&mut self) -> &mut Vec<DeferredBinding> {
         &mut self.deferred_bindings
     }
 }
@@ -145,31 +133,34 @@ impl LeafStylePropsExt for Text {
     fn leaf_style_mut(&mut self) -> &mut LeafStyle {
         &mut self.layout_style
     }
+
+    fn bindings_mut(&mut self) -> &mut Vec<DeferredBinding> {
+        &mut self.deferred_bindings
+    }
 }
 
 impl NodePropsExt for Text {
     fn node_props_mut(&mut self) -> &mut NodeProps {
         &mut self.node_props
     }
+
+    fn bindings_mut(&mut self) -> &mut Vec<DeferredBinding> {
+        &mut self.deferred_bindings
+    }
 }
 
 impl Element for Text {
-    fn build(
-        self: Box<Self>,
-        arena: &mut NodeArena,
-        cx: &mut Cx,
-        parent: Option<NodeId>,
-    ) -> Result<NodeId> {
+    fn build(self: Box<Self>, arena: &mut NodeArena, parent: Option<NodeId>) -> Result<NodeId> {
         let id = arena.create_node(
             NodeKind::Text(Arc::new(self.text_props)),
             self.node_props,
             parent,
             self.layout_style,
-            self.event_handlers,
+            self.event_handlers
         )?;
 
         for binding in self.deferred_bindings {
-            (binding.0)(id, cx);
+            (binding.0)(id);
         }
 
         Ok(id)
@@ -177,36 +168,33 @@ impl Element for Text {
 }
 
 pub trait IntoTextContent {
-    fn into_text_content(self) -> Reactive<Arc<str>>;
+    fn into_text_content(self) -> MaybeSignal<Arc<str>>;
 }
 
-impl<T> IntoTextContent for T
-where
-    T: Into<Arc<str>> + Clone,
-{
-    fn into_text_content(self) -> Reactive<Arc<str>> {
-        Reactive::from(self).map(|v: T| v.into())
+impl<T: Into<Arc<str>>> IntoTextContent for T {
+    fn into_text_content(self) -> MaybeSignal<Arc<str>> {
+        MaybeSignal::Static(self.into())
     }
 }
 
-impl<T> IntoTextContent for ReadSignal<T>
-where
-    T: Into<Arc<str>> + Clone,
-{
-    fn into_text_content(self) -> Reactive<Arc<str>> {
-        Reactive::Dynamic(self).map(|v: T| v.into())
+impl<T: std::fmt::Display + Clone + 'static> IntoTextContent for Signal<T> {
+    fn into_text_content(self) -> MaybeSignal<Arc<str>> {
+        let text_sig = signal::<Arc<str>>(Arc::from(self.get().to_string().as_str()));
+        self.subscribe(move || {
+            text_sig.set(Arc::from(self.get().to_string().as_str()));
+        });
+        MaybeSignal::Signal(text_sig)
     }
 }
 
 pub fn text(content: impl IntoTextContent) -> Text {
-    Text {
+    (Text {
         node_props: NodeProps::default(),
         layout_style: LeafStyle::default(),
         text_props: TextProps::default(),
         deferred_bindings: Vec::new(),
         event_handlers: EventHandlers::default(),
-    }
-    .content(content.into_text_content())
+    }).content(content.into_text_content())
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Hash, Eq)]

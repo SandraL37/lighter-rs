@@ -1,11 +1,10 @@
-use std::{rc::Rc, sync::Arc};
+use std::{ rc::Rc, sync::Arc };
 
 use crate::{
     core::{
-        reactive::{cx::ReactivePropsExt, dirty::DirtyFlags, signal::Reactive},
-        style::Transform,
+        layout::NodeLayout, reactive::{ bind::{ DeferredBinding, bind_field }, dirty::DirtyFlags, signal::MaybeSignal }, style::Transform
     },
-    elements::{div::DivProps, text::TextProps},
+    elements::{ div::DivProps, text::TextProps },
 };
 
 slotmap::new_key_type! {
@@ -62,47 +61,48 @@ impl Default for NodeProps {
     }
 }
 
-pub trait NodePropsExt: ReactivePropsExt {
+fn resolve_node_props(data: &mut NodeData, _layout: &mut NodeLayout) -> &'static mut NodeProps {
+    &mut data.props
+}
+
+pub trait NodePropsExt: Sized {
     fn node_props_mut(&mut self) -> &mut NodeProps;
+    fn bindings_mut(&mut self) -> &mut Vec<DeferredBinding>;
 
-    fn opacity(mut self, value: impl Into<Reactive<f32>>) -> Self {
-        self.bind(
+    fn opacity(mut self, value: impl Into<MaybeSignal<f32>>) -> Self {
+        bind_field(
+            self.node_props_mut(),
+            self.bindings_mut(),
             value,
-            &mut |this, v| {
-                this.node_props_mut().opacity = v;
-            },
             DirtyFlags::PAINT,
-            |data, _, v| {
-                data.props.opacity = v;
-            },
+            |props| &mut props.opacity,
+            resolve_node_props
         );
         self
     }
 
-    fn z(mut self, value: impl Into<Reactive<i32>>) -> Self {
-        self.bind(
+    fn z(mut self, value: impl Into<MaybeSignal<i32>>) -> Self {
+        bind_field(
+            self.node_props_mut(),
+            self.bindings_mut(),
             value,
-            &mut |this, v| {
-                this.node_props_mut().z_index = v;
-            },
             DirtyFlags::PAINT,
-            |data, _, v| {
-                data.props.z_index = v;
-            },
+            |props| &mut props.z_index,
+            resolve_node_props
         );
         self
     }
 
-    fn transform(mut self, value: impl Into<Reactive<Transform>>) -> Self {
-        self.bind(
+    fn transform(mut self, value: impl Into<MaybeSignal<Transform>>) -> Self {
+        let value = value.into().map(|transform| Some(transform));
+        
+        bind_field(
+            self.node_props_mut(),
+            self.bindings_mut(),
             value,
-            &mut |this, v| {
-                this.node_props_mut().transform = Some(v);
-            },
             DirtyFlags::PAINT,
-            |data, _, v| {
-                data.props.transform = Some(v);
-            },
+            |props| &mut props.transform,
+            resolve_node_props
         );
         self
     }

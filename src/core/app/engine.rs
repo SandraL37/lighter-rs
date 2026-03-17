@@ -11,8 +11,7 @@ use crate::{
         event::{EngineEvent, MouseButton, hit_test::hit_test},
         layout::{AvailableSpace, LayoutContext, Point, Rect, Size},
         reactive::{
-            cx::{Cx, UpdateQueue},
-            dirty::DirtyFlags,
+            dirty::DirtyFlags, runtime::Runtime,
         },
         render::{RenderCommand, Renderer},
         style::Transform,
@@ -26,21 +25,18 @@ pub struct Engine<R: Renderer> {
     root: NodeId,
     renderer: R,
     size: Size<usize>,
-    updates: UpdateQueue,
     hovered: Option<NodeId>,
 }
 
 impl<R: Renderer> Engine<R> {
     pub fn new(renderer: R, root: Box<dyn Element>, size: Size<usize>) -> Result<Self> {
         let mut arena = NodeArena::new();
-        let mut cx = Cx::new();
-        let root = root.build(&mut arena, &mut cx, None)?;
+        let root = root.build(&mut arena, None)?;
         Ok(Engine {
             arena,
             root,
             renderer,
             size,
-            updates: cx.updates,
             hovered: None,
         })
     }
@@ -94,7 +90,7 @@ impl<R: Renderer> Engine<R> {
             _ => {}
         }
 
-        if self.updates.borrow().len() > 0 {
+        if Runtime::has_updates() {
             self.frame()?;
         }
 
@@ -161,7 +157,7 @@ impl<R: Renderer> Engine<R> {
     pub fn frame(&mut self) -> Result<()> {
         log!("\rrendered frame");
 
-        let pending = self.updates.borrow_mut().drain(..).collect::<Vec<_>>();
+        let pending = Runtime::drain_updates();
 
         for update in pending {
             if let Ok((data, layout)) = self.arena.get_data_layout_mut(update.node_id) {

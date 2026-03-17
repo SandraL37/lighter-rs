@@ -4,15 +4,15 @@ use crate::{
     core::{
         arena::{
             NodeArena,
-            node::{EventHandlers, NodeId, NodeKind, NodeProps, NodePropsExt},
+            node::{ EventHandlers, NodeData, NodeId, NodeKind, NodeProps, NodePropsExt },
         },
         error::*,
         event::MouseEvents,
-        layout::{ContainerStyle, ContainerStylePropsExt},
+        layout::{ ContainerStyle, ContainerStylePropsExt, NodeLayout },
         reactive::{
-            cx::{Cx, DeferredBinding, ReactivePropsExt},
+            bind::{DeferredBinding, bind_field},
             dirty::DirtyFlags,
-            signal::Reactive,
+            signal::MaybeSignal,
         },
         style::Color,
     },
@@ -38,27 +38,37 @@ pub trait ChildrenExt: Sized {
     }
 }
 
-pub trait DivPropsExt:
-    ReactivePropsExt + ContainerStylePropsExt + ChildrenExt + NodePropsExt
-{
-    fn div_props_mut(&mut self) -> &mut DivProps;
+fn resolve_div<'a>(data: &'a mut NodeData, layout: &'a mut NodeLayout) -> &'a mut DivProps {
+    match &mut data.kind {
+        NodeKind::Div(props) => Arc::make_mut(props).expect("multiple references to div props"),
+        _ => unreachable!(),
+    }
+}
 
-    fn bg(mut self, color: impl Into<Reactive<Color>>) -> Self {
-        self.bind(
+pub trait DivPropsExt: Sized {
+    fn div_props_mut(&mut self) -> &mut DivProps;
+    fn bindings_mut(&mut self) -> &mut Vec<DeferredBinding>;
+
+    fn bg(mut self, color: impl Into<MaybeSignal<Color>>) -> Self {
+        bind_field(
+            self.div_props_mut(),
+            self.bindings_mut(),
             color,
-            &mut |div, color| div.div_props_mut().background_color = color,
             DirtyFlags::PAINT,
-            |node, _, color| node.kind.as_div_mut().background_color = color,
+            |props| &mut props.background_color,
+            resolve_div
         );
         self
     }
 
-    fn rounded(mut self, radius: impl Into<Reactive<f32>>) -> Self {
-        self.bind(
+    fn rounded(mut self, radius: impl Into<MaybeSignal<f32>>) -> Self {
+        bind_field(
+            self.div_props_mut(),
+            self.bindings_mut(),
             radius,
-            &mut |div, radius| div.div_props_mut().corner_radius = radius,
             DirtyFlags::PAINT,
-            |node, _, radius| node.kind.as_div_mut().corner_radius = radius,
+            |p| &mut p.corner_radius,
+            resolve_div
         );
 
         self
@@ -84,32 +94,25 @@ impl Element for Div {
     fn build(
         self: Box<Self>,
         arena: &mut NodeArena,
-        cx: &mut Cx,
-        parent: Option<NodeId>,
+        parent: Option<NodeId>
     ) -> Result<NodeId> {
         let id = arena.create_node(
             NodeKind::Div(Arc::new(self.div_props)),
             self.node_props,
             parent,
             self.layout_props,
-            self.event_handlers,
+            self.event_handlers
         )?;
 
         for binding in self.deferred_bindings {
-            (binding.0)(id, cx)
+            (binding.0)(id);
         }
 
         for child in self.children {
-            child.build(arena, cx, Some(id))?;
+            child.build(arena, Some(id))?;
         }
 
         Ok(id)
-    }
-}
-
-impl ReactivePropsExt for Div {
-    fn deferred_bindings(&mut self) -> &mut Vec<DeferredBinding> {
-        &mut self.deferred_bindings
     }
 }
 
@@ -117,17 +120,29 @@ impl ContainerStylePropsExt for Div {
     fn container_style_mut(&mut self) -> &mut ContainerStyle {
         &mut self.layout_props
     }
+    
+    fn bindings_mut(&mut self) -> &mut Vec<DeferredBinding> {
+        &mut self.deferred_bindings
+    }
 }
 
 impl NodePropsExt for Div {
     fn node_props_mut(&mut self) -> &mut NodeProps {
         &mut self.node_props
     }
+    
+    fn bindings_mut(&mut self) -> &mut Vec<DeferredBinding> {
+        &mut self.deferred_bindings
+    }
 }
 
 impl DivPropsExt for Div {
     fn div_props_mut(&mut self) -> &mut DivProps {
         &mut self.div_props
+    }
+
+    fn bindings_mut(&mut self) -> &mut Vec<DeferredBinding> {
+        &mut self.deferred_bindings
     }
 }
 

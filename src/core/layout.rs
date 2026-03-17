@@ -3,16 +3,9 @@ mod engine;
 use std::ops::Add;
 
 use crate::core::{
-    arena::{
-        NodeArena,
-        node::{NodeData, NodeId},
-    },
-    layout::engine::{ComputedLayout, LayoutCache, LayoutStyle, UnroundedLayout, compute_layout},
-    reactive::{
-        cx::ReactivePropsExt,
-        dirty::DirtyFlags,
-        signal::{Reactive, ReadSignal},
-    },
+    arena::{ NodeArena, node::{ NodeData, NodeId } },
+    layout::engine::{ ComputedLayout, LayoutCache, LayoutStyle, UnroundedLayout, compute_layout },
+    reactive::{ bind::{ DeferredBinding, bind_field }, dirty::DirtyFlags, signal::MaybeSignal },
     render::Renderer,
 };
 
@@ -24,33 +17,44 @@ pub struct LayoutContext<'a, R: Renderer> {
 
 impl<'a, R: Renderer> LayoutContext<'a, R> {
     pub fn get_children(&self, node_id: impl Into<NodeId>) -> &Vec<NodeId> {
-        self.arena.get_children(node_id.into()).expect(
-            "Layout engine error: Malformed NodeArena. Tried to access children of a dropped node.",
-        )
+        self.arena
+            .get_children(node_id.into())
+            .expect(
+                "Layout engine error: Malformed NodeArena. Tried to access children of a dropped node."
+            )
     }
 
     pub fn get_child_id(&self, parent_node_id: impl Into<NodeId>, child_index: usize) -> NodeId {
-        *self.get_children(parent_node_id).get(child_index).expect(
-            "Layout engine error: Malformed NodeArena. Tried to access a dropped child of a node.",
-        )
+        *self
+            .get_children(parent_node_id)
+            .get(child_index)
+            .expect(
+                "Layout engine error: Malformed NodeArena. Tried to access a dropped child of a node."
+            )
     }
 
     pub fn get_layout(&self, node_id: impl Into<NodeId>) -> &NodeLayout {
-        self.arena.get_layout(node_id.into()).expect(
-            "Layout engine error: Malformed NodeArena. Tried to access the layout of a dropped node.",
-        )
+        self.arena
+            .get_layout(node_id.into())
+            .expect(
+                "Layout engine error: Malformed NodeArena. Tried to access the layout of a dropped node."
+            )
     }
 
     pub fn get_layout_mut(&mut self, node_id: impl Into<NodeId>) -> &mut NodeLayout {
-        self.arena.get_layout_mut(node_id.into()).expect(
-            "Layout engine error: Malformed NodeArena. Tried to access the layout of a dropped node.",
-        )
+        self.arena
+            .get_layout_mut(node_id.into())
+            .expect(
+                "Layout engine error: Malformed NodeArena. Tried to access the layout of a dropped node."
+            )
     }
 
     pub fn get_data(&self, node_id: impl Into<NodeId>) -> &NodeData {
-        self.arena.get_data(node_id.into()).expect(
-            "Layout engine error: Malformed NodeArena. Tried to access the data of a dropped node.",
-        )
+        self.arena
+            .get_data(node_id.into())
+            .expect(
+                "Layout engine error: Malformed NodeArena. Tried to access the data of a dropped node."
+            )
     }
 
     pub fn compute_layout(&mut self, available_space: Size<AvailableSpace>) {
@@ -151,17 +155,14 @@ impl<T: Copy> Rect<T> {
         }
     }
 
-    pub fn includes(&self, point: Point<T>) -> bool
-    where
-        T: PartialOrd + Add<Output = T>,
-    {
+    pub fn includes(&self, point: Point<T>) -> bool where T: PartialOrd + Add<Output = T> {
         let max_x = self.location.x + self.size.width;
         let max_y = self.location.y + self.size.height;
 
-        point.x >= self.location.x
-            && point.y >= self.location.y
-            && point.x < max_x
-            && point.y < max_y
+        point.x >= self.location.x &&
+            point.y >= self.location.y &&
+            point.x < max_x &&
+            point.y < max_y
     }
 }
 
@@ -232,221 +233,222 @@ impl Default for ContainerStyle {
     }
 }
 
-pub trait ContainerStylePropsExt: ReactivePropsExt {
+fn resolve_container_style(
+    data: &mut NodeData,
+    _layout: &mut NodeLayout
+) -> &'static mut ContainerStyle {
+    match &mut data.layout_kind {
+        LayoutKind::Container(style) => style,
+        LayoutKind::Leaf(_) => unreachable!(),
+    }
+}
+
+fn resolve_leaf_style<'a>(
+    data: &'a mut NodeData,
+    _layout: &'a mut NodeLayout
+) -> &'a mut LeafStyle {
+    match &mut data.layout_kind {
+        LayoutKind::Container(_) => unreachable!(),
+        LayoutKind::Leaf(style) => style,
+    }
+}
+
+pub trait ContainerStylePropsExt: Sized {
     fn container_style_mut(&mut self) -> &mut ContainerStyle;
+    fn bindings_mut(&mut self) -> &mut Vec<DeferredBinding>;
 
-    fn w(mut self, width: impl Into<Reactive<Dimension>>) -> Self {
-        self.bind(
+    fn w(mut self, width: impl Into<MaybeSignal<Dimension>>) -> Self {
+        bind_field(
+            self.container_style_mut(),
+            self.bindings_mut(),
             width,
-            &mut |this, v| {
-                this.container_style_mut().size.width = v;
-            },
             DirtyFlags::LAYOUT,
-            |_, layout, v| {
-                layout.style.size.width = v.into();
-            },
+            |style| &mut style.size.width,
+            resolve_container_style
         );
         self
     }
 
-    fn h(mut self, height: impl Into<Reactive<Dimension>>) -> Self {
-        self.bind(
+    fn h(mut self, height: impl Into<MaybeSignal<Dimension>>) -> Self {
+        bind_field(
+            self.container_style_mut(),
+            self.bindings_mut(),
             height,
-            &mut |this, v| {
-                this.container_style_mut().size.height = v;
-            },
             DirtyFlags::LAYOUT,
-            |_, layout, v| {
-                layout.style.size.height = v.into();
-            },
+            |style| &mut style.size.height,
+            resolve_container_style
         );
         self
     }
 
-    fn size(mut self, size: impl Into<Reactive<Dimension>>) -> Self {
-        self.bind(
+    fn size(mut self, size: impl Into<MaybeSignal<Dimension>>) -> Self {
+        bind_field(
+            self.container_style_mut(),
+            self.bindings_mut(),
             size,
-            &mut |this, v| {
-                this.container_style_mut().size.height = v;
-                this.container_style_mut().size.width = v;
-            },
             DirtyFlags::LAYOUT,
-            |_, layout, v| {
-                layout.style.size.height = v.into();
-                layout.style.size.width = v.into();
-            },
+            |style| { &mut style.size.width },
+            resolve_container_style
+        );
+        bind_field(
+            self.container_style_mut(),
+            self.bindings_mut(),
+            size,
+            DirtyFlags::LAYOUT,
+            |style| { &mut style.size.height },
+            resolve_container_style
         );
         self
     }
 
-    fn max_w(mut self, max_width: impl Into<Reactive<Dimension>>) -> Self {
-        self.bind(
+    fn max_w(mut self, max_width: impl Into<MaybeSignal<Dimension>>) -> Self {
+        bind_field(
+            self.container_style_mut(),
+            self.bindings_mut(),
             max_width,
-            &mut |this, v| {
-                this.container_style_mut().max_size.width = v;
-            },
             DirtyFlags::LAYOUT,
-            |_, layout, v| {
-                layout.style.max_size.width = v.into();
-            },
+            |style| &mut style.max_size.width,
+            resolve_container_style
         );
         self
     }
 
-    fn max_h(mut self, max_height: impl Into<Reactive<Dimension>>) -> Self {
-        self.bind(
+    fn max_h(mut self, max_height: impl Into<MaybeSignal<Dimension>>) -> Self {
+        bind_field(
+            self.container_style_mut(),
+            self.bindings_mut(),
             max_height,
-            &mut |this, v| {
-                this.container_style_mut().max_size.height = v;
-            },
             DirtyFlags::LAYOUT,
-            |_, layout, v| {
-                layout.style.max_size.height = v.into();
-            },
+            |style| &mut style.max_size.height,
+            resolve_container_style
         );
         self
     }
 
-    fn max_size(mut self, max_size: impl Into<Reactive<Dimension>>) -> Self {
-        self.bind(
+    fn max_size(mut self, max_size: impl Into<MaybeSignal<Dimension>>) -> Self {
+        bind_field(
+            self.container_style_mut(),
+            self.bindings_mut(),
             max_size,
-            &mut |this, v| {
-                this.container_style_mut().max_size.width = v;
-                this.container_style_mut().max_size.height = v;
-            },
             DirtyFlags::LAYOUT,
-            |_, layout, v| {
-                layout.style.max_size.width = v.into();
-                layout.style.max_size.height = v.into();
-            },
+            |style| &mut style.max_size.width,
+            resolve_container_style
+        );
+        bind_field(
+            self.container_style_mut(),
+            self.bindings_mut(),
+            max_size,
+            DirtyFlags::LAYOUT,
+            |style| &mut style.max_size.height,
+            resolve_container_style
         );
         self
     }
 
-    fn p(mut self, padding: impl Into<Reactive<Padding>>) -> Self {
-        self.bind(
+    fn p(mut self, padding: impl Into<MaybeSignal<Padding>>) -> Self {
+        bind_field(
+            self.container_style_mut(),
+            self.bindings_mut(),
             padding,
-            &mut |this, v| {
-                this.container_style_mut().padding = v;
-            },
             DirtyFlags::LAYOUT,
-            |_, layout, v| {
-                layout.style.padding = v.into();
-            },
+            |style| &mut style.padding,
+            resolve_container_style
         );
         self
     }
 
-    fn m(mut self, margin: impl Into<Reactive<Margin>>) -> Self {
-        self.bind(
+    fn m(mut self, margin: impl Into<MaybeSignal<Margin>>) -> Self {
+        bind_field(
+            self.container_style_mut(),
+            self.bindings_mut(),
             margin,
-            &mut |this, v| {
-                this.container_style_mut().margin = v;
-            },
             DirtyFlags::LAYOUT,
-            |_, layout, v| {
-                layout.style.margin = v.into();
-            },
+            |style| &mut style.margin,
+            resolve_container_style
         );
         self
     }
 
-    fn align(mut self, align_items: impl Into<Reactive<AlignItems>>) -> Self {
-        self.bind(
+    fn align(mut self, align_items: impl Into<MaybeSignal<AlignItems>>) -> Self {
+        bind_field(
+            self.container_style_mut(),
+            self.bindings_mut(),
             align_items,
-            &mut |this, v| {
-                this.container_style_mut().align_items = v;
-            },
             DirtyFlags::LAYOUT,
-            |_, layout, v| {
-                layout.style.align_items = Some(v.into());
-            },
+            |style| &mut style.align_items,
+            resolve_container_style
         );
         self
     }
 
-    fn justify(mut self, justify_content: impl Into<Reactive<JustifyContent>>) -> Self {
-        self.bind(
+    fn justify(mut self, justify_content: impl Into<MaybeSignal<JustifyContent>>) -> Self {
+        bind_field(
+            self.container_style_mut(),
+            self.bindings_mut(),
             justify_content,
-            &mut |this, v| {
-                this.container_style_mut().justify_content = v;
-            },
             DirtyFlags::LAYOUT,
-            |_, layout, v| {
-                layout.style.justify_content = Some(v.into());
-            },
+            |style| &mut style.justify_content,
+            resolve_container_style
         );
         self
     }
 
-    fn gap_x(mut self, gap: impl Into<Reactive<DefiniteDimension>>) -> Self {
-        self.bind(
+    fn gap_x(mut self, gap: impl Into<MaybeSignal<DefiniteDimension>>) -> Self {
+        bind_field(
+            self.container_style_mut(),
+            self.bindings_mut(),
             gap,
-            &mut |this, v| {
-                this.container_style_mut().gap.width = v;
-            },
             DirtyFlags::LAYOUT,
-            |_, layout, v| {
-                layout.style.gap.width = v.into();
-            },
+            |style| &mut style.gap.width,
+            resolve_container_style
         );
         self
     }
 
-    fn gap_y(mut self, gap: impl Into<Reactive<DefiniteDimension>>) -> Self {
-        self.bind(
+    fn gap_y(mut self, gap: impl Into<MaybeSignal<DefiniteDimension>>) -> Self {
+        bind_field(
+            self.container_style_mut(),
+            self.bindings_mut(),
             gap,
-            &mut |this, v| {
-                this.container_style_mut().gap.height = v;
-            },
             DirtyFlags::LAYOUT,
-            |_, layout, v| {
-                layout.style.gap.height = v.into();
-            },
+            |style| &mut style.gap.height,
+            resolve_container_style
         );
         self
     }
 
-    fn gap(mut self, gap: impl Into<Reactive<DefiniteDimension>>) -> Self {
-        self.bind(
+    fn gap(mut self, gap: impl Into<MaybeSignal<DefiniteDimension>>) -> Self {
+        bind_field(
+            self.container_style_mut(),
+            self.bindings_mut(),
             gap,
-            &mut |this, v| {
-                this.container_style_mut().gap.width = v;
-                this.container_style_mut().gap.height = v;
-            },
             DirtyFlags::LAYOUT,
-            |_, layout, v| {
-                layout.style.gap.width = v.into();
-                layout.style.gap.height = v.into();
-            },
+            |style| &mut style.gap.width,
+            resolve_container_style
         );
         self
     }
 
-    fn flex_direction(mut self, direction: impl Into<Reactive<FlexDirection>>) -> Self {
-        self.bind(
+    fn flex_direction(mut self, direction: impl Into<MaybeSignal<FlexDirection>>) -> Self {
+        bind_field(
+            self.container_style_mut(),
+            self.bindings_mut(),
             direction,
-            &mut |this, v| {
-                this.container_style_mut().flex_direction = v;
-            },
             DirtyFlags::LAYOUT,
-            |_, layout, v| {
-                layout.style.flex_direction = v.into();
-            },
+            |style| &mut style.flex_direction,
+            resolve_container_style
         );
         self
     }
 
-    fn flex_wrap(mut self, wrap: impl Into<Reactive<FlexWrap>>) -> Self {
-        self.bind(
+    fn flex_wrap(mut self, wrap: impl Into<MaybeSignal<FlexWrap>>) -> Self {
+        bind_field(
+            self.container_style_mut(),
+            self.bindings_mut(),
             wrap,
-            &mut |this, v| {
-                this.container_style_mut().flex_wrap = v;
-            },
             DirtyFlags::LAYOUT,
-            |_, layout, v| {
-                layout.style.flex_wrap = v.into();
-            },
+            |style| &mut style.flex_wrap,
+            resolve_container_style
         );
         self
     }
@@ -472,107 +474,106 @@ impl Default for LeafStyle {
     }
 }
 
-pub trait LeafStylePropsExt: ReactivePropsExt {
+pub trait LeafStylePropsExt: Sized {
     fn leaf_style_mut(&mut self) -> &mut LeafStyle;
+    fn bindings_mut(&mut self) -> &mut Vec<DeferredBinding>;
 
-    fn w(mut self, width: impl Into<Reactive<Dimension>>) -> Self {
-        self.bind(
+    fn w(mut self, width: impl Into<MaybeSignal<Dimension>>) -> Self {
+        bind_field(
+            self.leaf_style_mut(),
+            self.bindings_mut(),
             width,
-            &mut |this, v| {
-                this.leaf_style_mut().size.width = v;
-            },
             DirtyFlags::LAYOUT,
-            |_, layout, v| {
-                layout.style.size.width = v.into();
-            },
+            |style| &mut style.size.width,
+            resolve_leaf_style
         );
         self
     }
 
-    fn h(mut self, height: impl Into<Reactive<Dimension>>) -> Self {
-        self.bind(
+    fn h(mut self, height: impl Into<MaybeSignal<Dimension>>) -> Self {
+        bind_field(
+            self.leaf_style_mut(),
+            self.bindings_mut(),
             height,
-            &mut |this, v| {
-                this.leaf_style_mut().size.height = v;
-            },
             DirtyFlags::LAYOUT,
-            |_, layout, v| {
-                layout.style.size.height = v.into();
-            },
+            |style| &mut style.size.height,
+            resolve_leaf_style
         );
         self
     }
 
-    fn size(mut self, size: impl Into<Reactive<Dimension>>) -> Self {
-        self.bind(
+    fn size(mut self, size: impl Into<MaybeSignal<Dimension>>) -> Self {
+        bind_field(
+            self.leaf_style_mut(),
+            self.bindings_mut(),
             size,
-            &mut |this, v| {
-                this.leaf_style_mut().size.width = v;
-                this.leaf_style_mut().size.height = v;
-            },
             DirtyFlags::LAYOUT,
-            |_, layout, v| {
-                layout.style.size.width = v.into();
-                layout.style.size.height = v.into();
-            },
+            |style| { &mut style.size.width },
+            resolve_leaf_style
+        );
+        bind_field(
+            self.leaf_style_mut(),
+            self.bindings_mut(),
+            size,
+            DirtyFlags::LAYOUT,
+            |style| { &mut style.size.height },
+            resolve_leaf_style
         );
         self
     }
 
-    fn max_w(mut self, max_width: impl Into<Reactive<Dimension>>) -> Self {
-        self.bind(
+    fn max_w(mut self, max_width: impl Into<MaybeSignal<Dimension>>) -> Self {
+        bind_field(
+            self.leaf_style_mut(),
+            self.bindings_mut(),
             max_width,
-            &mut |this, v| {
-                this.leaf_style_mut().max_size.width = v;
-            },
             DirtyFlags::LAYOUT,
-            |_, layout, v| {
-                layout.style.max_size.width = v.into();
-            },
+            |style| &mut style.max_size.width,
+            resolve_leaf_style
         );
         self
     }
 
-    fn max_h(mut self, max_height: impl Into<Reactive<Dimension>>) -> Self {
-        self.bind(
+    fn max_h(mut self, max_height: impl Into<MaybeSignal<Dimension>>) -> Self {
+        bind_field(
+            self.leaf_style_mut(),
+            self.bindings_mut(),
             max_height,
-            &mut |this, v| {
-                this.leaf_style_mut().max_size.height = v;
-            },
             DirtyFlags::LAYOUT,
-            |_, layout, v| {
-                layout.style.max_size.height = v.into();
-            },
+            |style| &mut style.max_size.height,
+            resolve_leaf_style
         );
         self
     }
 
-    fn max_size(mut self, max_size: impl Into<Reactive<Dimension>>) -> Self {
-        self.bind(
+    fn max_size(mut self, max_size: impl Into<MaybeSignal<Dimension>>) -> Self {
+        bind_field(
+            self.leaf_style_mut(),
+            self.bindings_mut(),
             max_size,
-            &mut |this, v| {
-                this.leaf_style_mut().max_size.width = v;
-                this.leaf_style_mut().max_size.height = v;
-            },
             DirtyFlags::LAYOUT,
-            |_, layout, v| {
-                layout.style.max_size.width = v.into();
-                layout.style.max_size.height = v.into();
-            },
+            |style| &mut style.max_size.width,
+            resolve_leaf_style
+        );
+        bind_field(
+            self.leaf_style_mut(),
+            self.bindings_mut(),
+            max_size,
+            DirtyFlags::LAYOUT,
+            |style| &mut style.max_size.height,
+            resolve_leaf_style
         );
         self
     }
 
-    fn m(mut self, margin: impl Into<Reactive<Margin>>) -> Self {
-        self.bind(
+    fn m(mut self, margin: impl Into<MaybeSignal<Margin>>) -> Self {
+        bind_field(
+            self.leaf_style_mut(),
+            self.bindings_mut(),
             margin,
-            &mut |this, v| {
-                this.leaf_style_mut().margin = v;
-            },
             DirtyFlags::LAYOUT,
-            |_, layout, v| {
-                layout.style.margin = v.into();
-            },
+            |style| &mut style.margin,
+            resolve_leaf_style
         );
         self
     }
@@ -674,26 +675,8 @@ impl From<DefiniteDimension> for DefiniteDimensionAuto {
     }
 }
 
-impl From<DefiniteDimension> for Reactive<Dimension> {
+impl From<DefiniteDimension> for MaybeSignal<Dimension> {
     fn from(d: DefiniteDimension) -> Self {
-        Reactive::Static(d.into())
-    }
-}
-
-impl From<ReadSignal<DefiniteDimension>> for Reactive<Dimension> {
-    fn from(sig: ReadSignal<DefiniteDimension>) -> Self {
-        Reactive::Dynamic(sig.map(|d| d.into()))
-    }
-}
-
-impl From<DefiniteDimension> for Reactive<DefiniteDimensionAuto> {
-    fn from(d: DefiniteDimension) -> Self {
-        Reactive::Static(d.into())
-    }
-}
-
-impl From<ReadSignal<DefiniteDimension>> for Reactive<DefiniteDimensionAuto> {
-    fn from(sig: ReadSignal<DefiniteDimension>) -> Self {
-        Reactive::Dynamic(sig.map(|d| d.into()))
+        MaybeSignal::Static(d.into())
     }
 }

@@ -25,7 +25,7 @@ pub unsafe extern "system" fn wnd_proc(
     wparam: WPARAM,
     lparam: LPARAM,
 ) -> LRESULT {
-    let window_ptr = unsafe { GetWindowLongPtrW(hwnd, GWLP_USERDATA) } as *mut Window;
+    let window_ptr = unsafe { GetWindowLongPtrW(hwnd, GWLP_USERDATA) } as *mut WindowState;
 
     if window_ptr.is_null() {
         return unsafe { DefWindowProcW(hwnd, msg, wparam, lparam) };
@@ -106,12 +106,12 @@ pub unsafe extern "system" fn wnd_proc(
     }
 }
 
-pub struct Window {
+pub struct WindowState {
     _hwnd: HWND,
     engine: Engine<D2DRenderer>,
 }
 
-impl Window {
+impl WindowState {
     pub fn build(
         hinstance: HINSTANCE,
         title: String,
@@ -121,7 +121,7 @@ impl Window {
         backdrop: WindowBackdrop,
         factory: &D2DRendererFactory,
         root: Box<dyn Element>,
-    ) -> Result<Box<Window>> {
+    ) -> Result<Box<WindowState>> {
         let mut rect = RECT {
             left: 0,
             top: 0,
@@ -164,7 +164,7 @@ impl Window {
 
         engine.dispatch_event(EngineEvent::WindowCreated)?;
 
-        let window = Box::new(Window {
+        let window = Box::new(WindowState {
             _hwnd: hwnd,
             engine,
         });
@@ -192,7 +192,7 @@ pub enum WindowMode {
     System,
 }
 
-pub struct WindowBuilder {
+pub struct Window {
     title: String,
     size: Size<usize>,
     position: Option<Point<usize>>,
@@ -201,7 +201,7 @@ pub struct WindowBuilder {
     root: Box<dyn Element>,
 }
 
-impl WindowBuilder {
+impl Window {
     pub fn title(mut self, title: impl Into<String>) -> Self {
         self.title = title.into();
         self
@@ -232,8 +232,8 @@ impl WindowBuilder {
         self
     }
 
-    pub fn build(self, hinstance: HINSTANCE, factory: &D2DRendererFactory) -> Result<Box<Window>> {
-        Window::build(
+    pub fn build(self, hinstance: HINSTANCE, factory: &D2DRendererFactory) -> Result<Box<WindowState>> {
+        WindowState::build(
             hinstance,
             self.title,
             self.size,
@@ -246,7 +246,7 @@ impl WindowBuilder {
     }
 }
 
-impl Default for WindowBuilder {
+impl Default for Window {
     fn default() -> Self {
         Self {
             title: String::from("window"),
@@ -257,10 +257,6 @@ impl Default for WindowBuilder {
             root: Box::new(div()),
         }
     }
-}
-
-pub fn window() -> WindowBuilder {
-    WindowBuilder::default()
 }
 
 pub fn setup_window(hwnd: HWND, mode: WindowMode, backdrop: WindowBackdrop) -> Result<()> {
@@ -297,4 +293,8 @@ pub fn setup_window(hwnd: HWND, mode: WindowMode, backdrop: WindowBackdrop) -> R
     };
 
     Ok(())
+}
+
+pub fn window() -> Window {
+    Window::default()
 }
