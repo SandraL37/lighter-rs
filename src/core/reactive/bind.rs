@@ -1,21 +1,24 @@
 use std::rc::Rc;
 
 use crate::core::{
-    arena::node::{ NodeData, NodeId },
+    arena::node::{NodeData, NodeId},
     layout::NodeLayout,
-    reactive::{ dirty::DirtyFlags, runtime::{ PendingUpdate, Runtime }, signal::MaybeSignal },
+    reactive::{
+        dirty::DirtyFlags,
+        runtime::{PendingUpdate, Runtime},
+        signal::MaybeSignal,
+    },
 };
 
 pub struct DeferredBinding(pub Box<dyn FnOnce(NodeId)>);
 
+#[cfg(feature = "debug")]
 impl std::fmt::Debug for DeferredBinding {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_tuple("DeferredBinding").finish()
     }
 }
 
-/// Initializes `current` to the value and, if reactive, defers a subscription that
-/// pushes a `PendingUpdate` (calling `apply`) whenever the signal changes.
 pub fn bind_field<T: Clone + 'static>(
     current: &mut T,
     bindings: &mut Vec<DeferredBinding>,

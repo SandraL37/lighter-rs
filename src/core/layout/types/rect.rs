@@ -2,7 +2,8 @@ use std::ops::Add;
 
 use crate::core::layout::types::{point::Point, size::Size};
 
-#[derive(Debug, Clone, Copy, PartialEq)]
+#[cfg_attr(feature = "debug", derive(Debug))]
+#[derive(Clone, Copy, PartialEq)]
 pub struct Rect<T> {
     pub location: Point<T>,
     pub size: Size<T>,

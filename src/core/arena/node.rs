@@ -1,17 +1,22 @@
-use std::{ rc::Rc, sync::Arc };
+use std::{rc::Rc, sync::Arc};
 
 use crate::{
     core::{
-        reactive::{ bind::{ DeferredBinding, bind_field }, dirty::DirtyFlags, signal::MaybeSignal }, style::Transform
+        reactive::{
+            bind::{DeferredBinding, bind_field},
+            dirty::DirtyFlags,
+            signal::MaybeSignal,
+        },
+        style::Transform,
     },
-    elements::{ div::DivProps, text::TextProps },
+    elements::{div::DivProps, text::TextProps},
 };
 
 slotmap::new_key_type! {
     pub struct NodeId;
 }
 
-#[derive(Debug)]
+#[cfg_attr(feature = "debug", derive(Debug))]
 pub struct NodeData {
     pub kind: NodeKind,
     pub props: NodeProps,
@@ -19,7 +24,8 @@ pub struct NodeData {
     pub event_handlers: EventHandlers,
 }
 
-#[derive(Debug, Clone)]
+#[cfg_attr(feature = "debug", derive(Debug))]
+#[derive(Clone)]
 pub enum NodeKind {
     Div(Arc<DivProps>),
     Text(Arc<TextProps>),
@@ -44,7 +50,7 @@ impl NodeKind {
 }
 
 //  TODO: bench this
-#[derive(Debug)]
+#[cfg_attr(feature = "debug", derive(Debug))]
 pub struct NodeProps {
     pub opacity: f32,
     pub z_index: i32,
@@ -66,23 +72,38 @@ pub trait NodePropsExt: Sized {
 
     fn opacity(mut self, value: impl Into<MaybeSignal<f32>>) -> Self {
         let (props, bindings) = self.node_ctx();
-        bind_field(&mut props.opacity, bindings, value, DirtyFlags::PAINT,
-            |data, _, val| data.props.opacity = val);
+        bind_field(
+            &mut props.opacity,
+            bindings,
+            value,
+            DirtyFlags::PAINT,
+            |data, _, val| data.props.opacity = val,
+        );
         self
     }
 
     fn z(mut self, value: impl Into<MaybeSignal<i32>>) -> Self {
         let (props, bindings) = self.node_ctx();
-        bind_field(&mut props.z_index, bindings, value, DirtyFlags::PAINT,
-            |data, _, val| data.props.z_index = val);
+        bind_field(
+            &mut props.z_index,
+            bindings,
+            value,
+            DirtyFlags::PAINT,
+            |data, _, val| data.props.z_index = val,
+        );
         self
     }
 
     fn transform(mut self, value: impl Into<MaybeSignal<Transform>>) -> Self {
         let (props, bindings) = self.node_ctx();
         let value = value.into().map(Some);
-        bind_field(&mut props.transform, bindings, value, DirtyFlags::PAINT,
-            |data, _, val| data.props.transform = val);
+        bind_field(
+            &mut props.transform,
+            bindings,
+            value,
+            DirtyFlags::PAINT,
+            |data, _, val| data.props.transform = val,
+        );
         self
     }
 }
@@ -105,6 +126,7 @@ impl Default for EventHandlers {
     }
 }
 
+#[cfg(feature = "debug")]
 impl std::fmt::Debug for EventHandlers {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("EventHandlers")

@@ -1,3 +1,7 @@
+use std::{collections::HashMap, sync::Arc};
+
+use windows::core::HSTRING;
+
 use crate::{core::render::d2d::*, elements::text::FontWeight};
 
 // TODO: everything is hashmap, needs to be fixed

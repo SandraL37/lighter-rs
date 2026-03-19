@@ -3,15 +3,18 @@ use std::sync::Arc;
 use crate::{
     core::{
         error::*,
-        layout::{ AvailableSpace, types::{ rect::Rect, size::Size } },
-        style::{ Color, Transform },
+        layout::{
+            AvailableSpace,
+            types::{rect::Rect, size::Size},
+        },
+        style::{Color, Transform},
     },
     elements::text::TextProps,
 };
 
 pub mod d2d;
 
-#[derive(Debug)]
+#[cfg_attr(feature = "debug", derive(Debug))]
 pub enum RenderCommand {
     Rect {
         bounds: Rect<f32>,
@@ -46,6 +49,6 @@ pub trait Renderer: Sized {
     fn measure_text(
         &mut self,
         text_props: &TextProps,
-        available_size: Size<AvailableSpace>
+        available_size: Size<AvailableSpace>,
     ) -> Result<Size<f32>>;
 }

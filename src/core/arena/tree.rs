@@ -1,6 +1,6 @@
 use crate::core::arena::{NodeArena, node::NodeId};
 
-#[derive(Debug)]
+#[cfg_attr(feature = "debug", derive(Debug))]
 pub struct TreeContext<'a> {
     pub arena: &'a NodeArena,
     pub root: NodeId,

@@ -61,7 +61,8 @@ impl<'a, R: Renderer> LayoutContext<'a, R> {
     }
 }
 
-#[derive(Debug, Default, Clone)]
+#[cfg_attr(feature = "debug", derive(Debug))]
+#[derive(Default, Clone)]
 pub struct NodeLayout {
     pub style: LayoutStyle,
     pub unrounded: UnroundedLayout,
@@ -87,6 +88,7 @@ pub type LayoutCache = taffy::Cache;
 
 pub type Dimension = taffy::Dimension;
 pub type DefiniteDimension = taffy::LengthPercentage;
+pub type DefiniteDimensionAuto = taffy::LengthPercentageAuto;
 pub type AvailableSpace = taffy::AvailableSpace;
 pub type FlexDirection = taffy::FlexDirection;
 pub type JustifyContent = taffy::JustifyContent;
@@ -106,15 +108,16 @@ pub fn auto() -> Dimension {
     taffy::style_helpers::auto()
 }
 
-pub type Margin = taffy::Rect<taffy::LengthPercentageAuto>;
-pub type Padding = taffy::Rect<taffy::LengthPercentage>;
+pub type Margin = taffy::Rect<DefiniteDimensionAuto>;
+pub type Padding = taffy::Rect<DefiniteDimension>;
 pub type Gap = Size<DefiniteDimension>;
 
-pub trait ContainerStylePropsExt: Sized {
+pub trait ContainerStylePropsImpl: Sized {
     fn container_ctx(&mut self) -> (&mut LayoutStyle, &mut Vec<DeferredBinding>);
 
     fn w(mut self, width: impl Into<MaybeSignal<Dimension>>) -> Self {
         let (style, bindings) = self.container_ctx();
+
         bind_field(
             &mut style.size.width,
             bindings,
@@ -127,6 +130,7 @@ pub trait ContainerStylePropsExt: Sized {
 
     fn h(mut self, height: impl Into<MaybeSignal<Dimension>>) -> Self {
         let (style, bindings) = self.container_ctx();
+
         bind_field(
             &mut style.size.height,
             bindings,
@@ -139,7 +143,9 @@ pub trait ContainerStylePropsExt: Sized {
 
     fn size(mut self, size: impl Into<MaybeSignal<Dimension>>) -> Self {
         let size: MaybeSignal<Dimension> = size.into();
+
         let (style, bindings) = self.container_ctx();
+
         bind_field(
             &mut style.size.width,
             bindings,
@@ -159,6 +165,7 @@ pub trait ContainerStylePropsExt: Sized {
 
     fn max_w(mut self, max_width: impl Into<MaybeSignal<Dimension>>) -> Self {
         let (style, bindings) = self.container_ctx();
+
         bind_field(
             &mut style.max_size.width,
             bindings,
@@ -171,6 +178,7 @@ pub trait ContainerStylePropsExt: Sized {
 
     fn max_h(mut self, max_height: impl Into<MaybeSignal<Dimension>>) -> Self {
         let (style, bindings) = self.container_ctx();
+
         bind_field(
             &mut style.max_size.height,
             bindings,
@@ -183,7 +191,9 @@ pub trait ContainerStylePropsExt: Sized {
 
     fn max_size(mut self, max_size: impl Into<MaybeSignal<Dimension>>) -> Self {
         let max_size: MaybeSignal<Dimension> = max_size.into();
+
         let (style, bindings) = self.container_ctx();
+
         bind_field(
             &mut style.max_size.width,
             bindings,
@@ -203,6 +213,7 @@ pub trait ContainerStylePropsExt: Sized {
 
     fn p(mut self, padding: impl Into<MaybeSignal<Padding>>) -> Self {
         let (style, bindings) = self.container_ctx();
+
         bind_field(
             &mut style.padding,
             bindings,
@@ -215,6 +226,7 @@ pub trait ContainerStylePropsExt: Sized {
 
     fn m(mut self, margin: impl Into<MaybeSignal<Margin>>) -> Self {
         let (style, bindings) = self.container_ctx();
+
         bind_field(
             &mut style.margin,
             bindings,
@@ -227,7 +239,9 @@ pub trait ContainerStylePropsExt: Sized {
 
     fn align(mut self, align_items: impl Into<MaybeSignal<AlignItems>>) -> Self {
         let value = align_items.into().map(Some);
+
         let (style, bindings) = self.container_ctx();
+
         bind_field(
             &mut style.align_items,
             bindings,
@@ -240,7 +254,9 @@ pub trait ContainerStylePropsExt: Sized {
 
     fn justify(mut self, justify_content: impl Into<MaybeSignal<JustifyContent>>) -> Self {
         let value = justify_content.into().map(Some);
+
         let (style, bindings) = self.container_ctx();
+
         bind_field(
             &mut style.justify_content,
             bindings,
@@ -253,6 +269,7 @@ pub trait ContainerStylePropsExt: Sized {
 
     fn gap_x(mut self, gap: impl Into<MaybeSignal<DefiniteDimension>>) -> Self {
         let (style, bindings) = self.container_ctx();
+
         bind_field(
             &mut style.gap.width,
             bindings,
@@ -265,6 +282,7 @@ pub trait ContainerStylePropsExt: Sized {
 
     fn gap_y(mut self, gap: impl Into<MaybeSignal<DefiniteDimension>>) -> Self {
         let (style, bindings) = self.container_ctx();
+
         bind_field(
             &mut style.gap.height,
             bindings,
@@ -277,7 +295,9 @@ pub trait ContainerStylePropsExt: Sized {
 
     fn gap(mut self, gap: impl Into<MaybeSignal<DefiniteDimension>>) -> Self {
         let gap: MaybeSignal<DefiniteDimension> = gap.into();
+
         let (style, bindings) = self.container_ctx();
+
         bind_field(
             &mut style.gap.width,
             bindings,
@@ -297,6 +317,7 @@ pub trait ContainerStylePropsExt: Sized {
 
     fn flex_direction(mut self, direction: impl Into<MaybeSignal<FlexDirection>>) -> Self {
         let (style, bindings) = self.container_ctx();
+
         bind_field(
             &mut style.flex_direction,
             bindings,
@@ -309,6 +330,7 @@ pub trait ContainerStylePropsExt: Sized {
 
     fn flex_wrap(mut self, wrap: impl Into<MaybeSignal<FlexWrap>>) -> Self {
         let (style, bindings) = self.container_ctx();
+
         bind_field(
             &mut style.flex_wrap,
             bindings,

@@ -18,7 +18,6 @@ use crate::{
         style::Transform,
     },
     elements::Element,
-    log,
 };
 
 pub struct Engine<R: Renderer> {
@@ -156,7 +155,7 @@ impl<R: Renderer> Engine<R> {
     }
 
     pub fn frame(&mut self) -> Result<()> {
-        log!("\rrendered frame");
+        println!("\rrendered frame");
 
         let pending = Runtime::drain_updates();
 

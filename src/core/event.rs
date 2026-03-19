@@ -7,7 +7,8 @@ use crate::core::{
     layout::types::{point::Point, size::Size},
 };
 
-#[derive(Debug, Clone, Copy)]
+#[cfg_attr(feature = "debug", derive(Debug))]
+#[derive(Clone, Copy)]
 pub enum EngineEvent {
     WindowCreated,
     WindowResized {
@@ -26,14 +27,16 @@ pub enum EngineEvent {
     },
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[cfg_attr(feature = "debug", derive(Debug))]
+#[derive(Clone, Copy, PartialEq, Eq)]
 pub enum MouseButton {
     Left,
     Right,
     Middle,
 }
 
-#[derive(Debug, Clone, Copy)]
+#[cfg_attr(feature = "debug", derive(Debug))]
+#[derive(Clone, Copy)]
 pub enum Event {
     Click,
     MouseEnter,

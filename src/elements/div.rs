@@ -2,17 +2,24 @@ use std::sync::Arc;
 
 use crate::{
     core::{
-        arena::{ NodeArena, node::{ EventHandlers, NodeId, NodeKind, NodeProps, NodePropsExt } },
+        arena::{
+            NodeArena,
+            node::{EventHandlers, NodeId, NodeKind, NodeProps, NodePropsExt},
+        },
         error::*,
         event::MouseEvents,
-        layout::{ ContainerStylePropsExt, LayoutStyle },
-        reactive::{ bind::{ DeferredBinding, bind_field }, dirty::DirtyFlags, signal::MaybeSignal },
+        layout::{ContainerStylePropsImpl, LayoutStyle},
+        reactive::{
+            bind::{DeferredBinding, bind_field},
+            dirty::DirtyFlags,
+            signal::MaybeSignal,
+        },
         style::Color,
     },
     elements::Element,
 };
 
-#[derive(Debug)]
+#[cfg_attr(feature = "debug", derive(Debug))]
 pub struct Div {
     node_props: NodeProps,
     layout_props: LayoutStyle,
@@ -36,22 +43,35 @@ pub trait DivPropsExt: Sized {
 
     fn bg(mut self, color: impl Into<MaybeSignal<Color>>) -> Self {
         let (props, bindings) = self.div_ctx();
-        bind_field(&mut props.background_color, bindings, color, DirtyFlags::PAINT, |data, _, val| {
-            data.kind.as_div_mut().background_color = val;
-        });
+        bind_field(
+            &mut props.background_color,
+            bindings,
+            color,
+            DirtyFlags::PAINT,
+            |data, _, val| {
+                data.kind.as_div_mut().background_color = val;
+            },
+        );
         self
     }
 
     fn rounded(mut self, radius: impl Into<MaybeSignal<f32>>) -> Self {
         let (props, bindings) = self.div_ctx();
-        bind_field(&mut props.corner_radius, bindings, radius, DirtyFlags::PAINT, |data, _, val| {
-            data.kind.as_div_mut().corner_radius = val;
-        });
+        bind_field(
+            &mut props.corner_radius,
+            bindings,
+            radius,
+            DirtyFlags::PAINT,
+            |data, _, val| {
+                data.kind.as_div_mut().corner_radius = val;
+            },
+        );
         self
     }
 }
 
-#[derive(Debug, Clone)]
+#[cfg_attr(feature = "debug", derive(Debug))]
+#[derive(Clone)]
 pub struct DivProps {
     pub background_color: Color,
     pub corner_radius: f32, // TODO: make it DefiniteDimension
@@ -73,7 +93,7 @@ impl Element for Div {
             self.node_props,
             parent,
             self.layout_props,
-            self.event_handlers
+            self.event_handlers,
         )?;
 
         for binding in self.deferred_bindings {
@@ -88,7 +108,7 @@ impl Element for Div {
     }
 }
 
-impl ContainerStylePropsExt for Div {
+impl ContainerStylePropsImpl for Div {
     fn container_ctx(&mut self) -> (&mut LayoutStyle, &mut Vec<DeferredBinding>) {
         (&mut self.layout_props, &mut self.deferred_bindings)
     }

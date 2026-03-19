@@ -18,7 +18,7 @@ use crate::{
 };
 use std::sync::Arc;
 
-#[derive(Debug)]
+#[cfg_attr(feature = "debug", derive(Debug))]
 pub struct Text {
     node_props: NodeProps,
     layout_style: LayoutStyle,
@@ -27,7 +27,8 @@ pub struct Text {
     event_handlers: EventHandlers,
 }
 
-#[derive(Debug, Clone)]
+#[cfg_attr(feature = "debug", derive(Debug))]
+#[derive(Clone)]
 pub struct TextProps {
     pub content: Arc<str>,
     pub color: Color,
@@ -53,40 +54,61 @@ pub trait TextPropsExt: Sized {
 
     fn content(mut self, value: impl IntoTextContent) -> Self {
         let (props, bindings) = self.text_ctx();
-        bind_field(&mut props.content, bindings, value.into_text_content(),
+        bind_field(
+            &mut props.content,
+            bindings,
+            value.into_text_content(),
             DirtyFlags::PAINT | DirtyFlags::LAYOUT,
-            |data, _, val| data.kind.as_text_mut().content = val);
+            |data, _, val| data.kind.as_text_mut().content = val,
+        );
         self
     }
 
     fn color(mut self, value: impl Into<MaybeSignal<Color>>) -> Self {
         let (props, bindings) = self.text_ctx();
-        bind_field(&mut props.color, bindings, value, DirtyFlags::PAINT,
-            |data, _, val| data.kind.as_text_mut().color = val);
+        bind_field(
+            &mut props.color,
+            bindings,
+            value,
+            DirtyFlags::PAINT,
+            |data, _, val| data.kind.as_text_mut().color = val,
+        );
         self
     }
 
     fn font_family(mut self, value: impl IntoTextContent) -> Self {
         let (props, bindings) = self.text_ctx();
-        bind_field(&mut props.font_family, bindings, value.into_text_content(),
+        bind_field(
+            &mut props.font_family,
+            bindings,
+            value.into_text_content(),
             DirtyFlags::PAINT | DirtyFlags::LAYOUT,
-            |data, _, val| data.kind.as_text_mut().font_family = val);
+            |data, _, val| data.kind.as_text_mut().font_family = val,
+        );
         self
     }
 
     fn font_size(mut self, value: impl Into<MaybeSignal<f32>>) -> Self {
         let (props, bindings) = self.text_ctx();
-        bind_field(&mut props.font_size, bindings, value,
+        bind_field(
+            &mut props.font_size,
+            bindings,
+            value,
             DirtyFlags::PAINT | DirtyFlags::LAYOUT,
-            |data, _, val| data.kind.as_text_mut().font_size = val);
+            |data, _, val| data.kind.as_text_mut().font_size = val,
+        );
         self
     }
 
     fn font_weight(mut self, value: impl Into<MaybeSignal<FontWeight>>) -> Self {
         let (props, bindings) = self.text_ctx();
-        bind_field(&mut props.font_weight, bindings, value,
+        bind_field(
+            &mut props.font_weight,
+            bindings,
+            value,
             DirtyFlags::PAINT | DirtyFlags::LAYOUT,
-            |data, _, val| data.kind.as_text_mut().font_weight = val);
+            |data, _, val| data.kind.as_text_mut().font_weight = val,
+        );
         self
     }
 }
@@ -158,7 +180,8 @@ pub fn text(content: impl IntoTextContent) -> Text {
     .content(content)
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Hash, Eq)]
+#[cfg_attr(feature = "debug", derive(Debug))]
+#[derive(Clone, Copy, PartialEq, Hash, Eq)]
 pub struct FontWeight(pub u16);
 
 impl FontWeight {

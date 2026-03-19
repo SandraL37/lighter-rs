@@ -1,12 +1,14 @@
 bitflags::bitflags! {
-    #[derive(Debug, Copy, Clone, PartialEq, Eq)]
+    #[cfg_attr(feature = "debug", derive(Debug))]
+    #[derive(Copy, Clone, PartialEq, Eq)]
     pub struct DirtyFlags: u8 {
         const LAYOUT = 1 << 0;
         const PAINT  = 1 << 1;
     }
 }
 
-#[derive(Debug, Default)]
+#[cfg_attr(feature = "debug", derive(Debug))]
+#[derive(Default)]
 pub struct DirtyCounter {
     counts: [usize; 2],
 }

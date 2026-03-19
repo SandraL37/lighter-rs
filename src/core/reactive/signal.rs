@@ -1,6 +1,6 @@
 use std::{marker::PhantomData, rc::Rc};
 
-use crate::core::reactive::runtime::{ Runtime, SignalId };
+use crate::core::reactive::runtime::{Runtime, SignalId};
 
 pub struct Signal<T: 'static> {
     pub(crate) id: SignalId,
@@ -13,7 +13,7 @@ impl<T: 'static> Clone for Signal<T> {
     }
 }
 
-impl <T: 'static> Copy for Signal<T> {}
+impl<T: 'static> Copy for Signal<T> {}
 
 impl<T: Clone + 'static> Signal<T> {
     pub fn get(self) -> T {
@@ -36,12 +36,15 @@ impl<T: Clone + 'static> Signal<T> {
             let f = Rc::new(f);
             for dep in deps {
                 let f = f.clone();
-                Runtime::subscribe(dep, Rc::new(move || {
-                    derived.set(f());
-                }));
+                Runtime::subscribe(
+                    dep,
+                    Rc::new(move || {
+                        derived.set(f());
+                    }),
+                );
             }
         }
-        
+
         derived
     }
 
@@ -75,7 +78,10 @@ impl<T: Clone + 'static> MaybeSignal<T> {
     }
 }
 
-impl<T: 'static> From<T> for MaybeSignal<T> {
+impl<T> From<T> for MaybeSignal<T>
+where
+    T: 'static,
+{
     fn from(value: T) -> Self {
         MaybeSignal::Static(value)
     }

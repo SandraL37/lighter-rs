@@ -1,4 +1,5 @@
-#[derive(Debug, Clone, Copy, PartialEq)]
+#[cfg_attr(feature = "debug", derive(Debug))]
+#[derive(Clone, Copy, PartialEq)]
 pub struct Color {
     pub r: f32,
     pub g: f32,
@@ -38,7 +39,8 @@ impl Color {
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq)]
+#[cfg_attr(feature = "debug", derive(Debug))]
+#[derive(Clone, Copy, PartialEq)]
 pub struct Transform {
     pub matrix: [f32; 6],
 }

@@ -1,4 +1,5 @@
-#[derive(Debug, Clone, Copy, PartialEq)]
+#[cfg_attr(feature = "debug", derive(Debug))]
+#[derive(Clone, Copy, PartialEq)]
 pub struct Point<T> {
     pub x: T,
     pub y: T,
