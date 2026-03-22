@@ -54,7 +54,8 @@ impl D2DCache {
         props: &TextProps,
         max_size: Size<f32>,
     ) -> Result<DWriteTextLayout> {
-        let key = TextLayoutKey::from(props, max_size);
+        let fmt_key = TextFormatKey::from(props);
+        let key = TextLayoutKey::from(props, max_size, fmt_key);
 
         if let Some(cached) = self.text_layout.get(&key) {
             return Ok(cached.clone());
@@ -113,14 +114,16 @@ struct TextLayoutKey {
     content: Arc<str>,
     max_width_bits: u32,
     max_height_bits: u32,
+    format: TextFormatKey,
 }
 
 impl TextLayoutKey {
-    pub fn from(props: &TextProps, bounds: Size<f32>) -> Self {
+    pub fn from(props: &TextProps, bounds: Size<f32>, format: TextFormatKey) -> Self {
         Self {
             content: Arc::clone(&props.content),
             max_width_bits: bounds.width.to_bits(),
             max_height_bits: bounds.height.to_bits(),
+            format,
         }
     }
 }

@@ -55,9 +55,22 @@ impl App {
         Ok(self)
     }
 
-    pub fn run(&self) -> Result<()> {
+    fn check_windows(&mut self) {
+        self.windows
+            .retain(|window| unsafe { IsWindow(Some(window.hwnd())) }.as_bool());
+
+        if self.windows.len() == 0 {
+            unsafe { PostQuitMessage(0) };
+        }
+    }
+
+    pub fn run(&mut self) -> Result<()> {
         let mut msg = MSG::default();
         while unsafe { GetMessageW(&mut msg, None, 0, 0).0 } > 0 {
+            if msg.message == custom_messages::WINDOWCLOSED {
+                self.check_windows();
+            }
+
             let _ = unsafe { TranslateMessage(&msg) }; // TODO: handle error
             unsafe { DispatchMessageW(&msg) };
         }
@@ -67,4 +80,8 @@ impl App {
 
 pub fn app() -> Result<App> {
     App::new()
+}
+
+mod custom_messages {
+    pub const WINDOWCLOSED: u32 = 10001;
 }

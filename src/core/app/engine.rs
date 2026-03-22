@@ -41,60 +41,70 @@ impl<R: Renderer> Engine<R> {
         })
     }
 
-    pub fn dispatch_event(&mut self, event: EngineEvent) -> Result<()> {
-        match event {
-            EngineEvent::WindowCreated => self.frame()?,
-            EngineEvent::WindowResized { size: new_size } => {
-                let old_size = self.size;
+    pub fn dispatch_event(&mut self, event: EngineEvent) {
+        let mut result = || -> Result<()> {
+            match event {
+                EngineEvent::WindowCreated => self.frame()?,
+                EngineEvent::WindowResized { size: new_size } => {
+                    let old_size = self.size;
 
-                if !(old_size == new_size) {
-                    self.resize(new_size)?;
-                    self.frame()?;
+                    if !(old_size == new_size) {
+                        self.resize(new_size)?;
+                        self.frame()?;
+                    }
                 }
-            }
-            EngineEvent::MouseMove { position } => {
-                let hit_path = hit_test(&self.arena, self.root, position);
-                let new_hover = hit_path.last().copied();
+                EngineEvent::MouseMove { position } => {
+                    let hit_path = hit_test(&self.arena, self.root, position);
+                    let new_hover = hit_path.last().copied();
 
-                if new_hover != self.hovered {
-                    if let Some(old) = self.hovered {
-                        if let Ok(data) = self.arena.get_data(old) {
-                            if let Some(cb) = &data.event_handlers.on_mouse_leave {
+                    if new_hover != self.hovered {
+                        if let Some(old) = self.hovered {
+                            if let Ok(data) = self.arena.get_data(old) {
+                                if let Some(cb) = &data.event_handlers.on_mouse_leave {
+                                    cb();
+                                }
+                            }
+                        }
+                        if let Some(new) = new_hover {
+                            if let Ok(data) = self.arena.get_data(new) {
+                                if let Some(cb) = &data.event_handlers.on_mouse_enter {
+                                    cb();
+                                }
+                            }
+                        }
+                        self.hovered = new_hover;
+                    }
+                }
+                EngineEvent::MouseDown {
+                    position,
+                    button: MouseButton::Left,
+                } => {
+                    let hit_path = hit_test(&self.arena, self.root, position);
+                    for &node_id in hit_path.iter().rev() {
+                        if let Ok(data) = self.arena.get_data(node_id) {
+                            if let Some(cb) = &data.event_handlers.on_click {
                                 cb();
                             }
                         }
                     }
-                    if let Some(new) = new_hover {
-                        if let Ok(data) = self.arena.get_data(new) {
-                            if let Some(cb) = &data.event_handlers.on_mouse_enter {
-                                cb();
-                            }
-                        }
-                    }
-                    self.hovered = new_hover;
                 }
+                _ => {}
             }
-            EngineEvent::MouseDown {
-                position,
-                button: MouseButton::Left,
-            } => {
-                let hit_path = hit_test(&self.arena, self.root, position);
-                for &node_id in hit_path.iter().rev() {
-                    if let Ok(data) = self.arena.get_data(node_id) {
-                        if let Some(cb) = &data.event_handlers.on_click {
-                            cb();
-                        }
-                    }
-                }
+
+            if Runtime::has_updates() {
+                self.frame()?;
             }
-            _ => {}
-        }
 
-        if Runtime::has_updates() {
-            self.frame()?;
-        }
+            Ok(())
+        };
 
-        Ok(())
+        // TODO: improve error handling in some way
+        #[cfg(debug_assertions)]
+        if let Err(error) = result() {
+            eprintln!("{error:?}");
+        }
+        #[cfg(not(debug_assertions))]
+        let _ = result();
     }
 
     fn build_render_list(
@@ -155,12 +165,13 @@ impl<R: Renderer> Engine<R> {
     }
 
     pub fn frame(&mut self) -> Result<()> {
-        println!("\rrendered frame");
-
         let pending = Runtime::drain_updates();
+
+        // let mut changed_nodes = vec![];
 
         for update in pending {
             if let Ok((data, layout)) = self.arena.get_data_layout_mut(update.node_id) {
+                // changed_nodes.push(update.node_id);
                 (update.apply)(data, layout);
             }
 
