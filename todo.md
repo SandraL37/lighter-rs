@@ -2,8 +2,9 @@
 
 ## [CRITICAL]
 - [x] fix text layout cache correctness in `src/core/render/d2d/cache.rs`: `TextLayoutKey` currently ignores `font_family`, `font_size`, and `font_weight`, which can return wrong cached layouts for different text styles sharing the same content and bounds.
-- [x] remove panic paths in window event dispatch (`src/core/app/window.rs`): replace `.unwrap()` calls in `WM_SIZE`, `WM_MOUSEMOVE`, `WM_LBUTTONDOWN`, `WM_LBUTTONUP` with explicit error handling to avoid hard crashes from runtime/renderer errors.
+- [ ] remove panic paths in window event dispatch (`src/core/app/window.rs`): replace `.unwrap()` calls in `WM_SIZE`, `WM_MOUSEMOVE`, `WM_LBUTTONDOWN`, `WM_LBUTTONUP` with explicit error handling to avoid hard crashes from runtime/renderer errors.
 - [x] fix app shutdown behavior for multi-window support (`src/core/app/window.rs`): `WM_DESTROY` always calls `PostQuitMessage(0)`, which kills the whole app when any window closes; track remaining windows and quit only when last window is destroyed.
+- [ ] fix the padding, margin, gap problem. Add a new LayoutStyle that is bound to the frameworks api and then is converted during the building phase to taffy Layout
 
 ## [URGENT]
 - [ ] prevent reactive subscription leaks (`src/core/reactive/runtime.rs` + `src/core/reactive/bind.rs`): signals only support `subscribe` (no unsubscribe), so deleted nodes keep receiving updates forever; add subscriber IDs + unsubscribe on node/subtree deletion.
@@ -37,3 +38,33 @@
 - [ ] add blur effects with graceful fallback when effect pipeline/device support is missing.
 - [ ] add ANIMATION primitives (timing, interpolation, invalidation hooks) integrated with reactive updates.
 - [ ] add first-class component contract in core (`src/elements` + `src/core`): define a `Component` abstraction (props + child slots + reactive local state) so custom elements can be composed without directly manipulating low-level `NodeArena` patterns.
+
+## [TO BE TAGGED]
+- [ ] fix signal system, avoid the use of map mainly in the layout.rs file. Compound types store signals like Point<MaybeSignal>
+
+```rust
+#[inline(always)]
+pub fn size(mut self, value: f32) -> Self {
+    self.w(value).h(value)
+}
+
+#[inline(always)]
+pub fn p(mut self, value: f32) -> Self {
+    self.px(value).py(value)
+}
+
+#[inline(always)]
+pub fn px(mut self, value: f32) -> Self {
+    self.pt(value).pb(value)
+}
+
+#[inline(always)]
+pub fn py(mut self, value: f32) -> Self {
+    self.pl(value).pr(value)
+}
+
+#[inline(always)]
+pub fn m(mut self, value: f32) -> Self {
+    self.mx(value).my(value)
+}
+```

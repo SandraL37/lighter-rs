@@ -8,7 +8,7 @@ use crate::{
         },
         error::*,
         event::MouseEvents,
-        layout::{ContainerStylePropsImpl, LayoutStyle},
+        layout::{ContainerStylePropsExt, LayoutStyle, LeafStylePropsExt},
         reactive::{
             bind::{DeferredBinding, bind_field},
             dirty::DirtyFlags,
@@ -108,11 +108,13 @@ impl Element for Div {
     }
 }
 
-impl ContainerStylePropsImpl for Div {
-    fn container_ctx(&mut self) -> (&mut LayoutStyle, &mut Vec<DeferredBinding>) {
+impl LeafStylePropsExt for Div {
+    fn ctx(&mut self) -> (&mut LayoutStyle, &mut Vec<DeferredBinding>) {
         (&mut self.layout_props, &mut self.deferred_bindings)
     }
 }
+
+impl ContainerStylePropsExt for Div {}
 
 impl NodePropsExt for Div {
     fn node_ctx(&mut self) -> (&mut NodeProps, &mut Vec<DeferredBinding>) {

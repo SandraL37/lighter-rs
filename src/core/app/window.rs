@@ -1,22 +1,21 @@
 use crate::{
     core::{
-        app::{ custom_messages, engine::Engine },
+        app::engine::Engine,
         error::*,
-        event::{ EngineEvent, MouseButton },
-        layout::types::{ point::Point, size::Size },
-        render::d2d::{ D2DRenderer, D2DRendererFactory },
+        event::{EngineEvent, MouseButton},
+        layout::types::{point::Point, size::Size},
+        render::d2d::{D2DRenderer, D2DRendererFactory},
     },
-    elements::{ Element, div::div },
+    elements::{Element, div::div},
 };
 
 use windows::{
     Win32::{
         Foundation::*,
-        Graphics::{ Dwm::*, Gdi::* },
-        System::Threading::GetCurrentThreadId,
+        Graphics::{Dwm::*, Gdi::*},
         UI::WindowsAndMessaging::*,
     },
-    core::{ HSTRING, PCWSTR },
+    core::{HSTRING, PCWSTR},
 };
 use windows_result::BOOL;
 
@@ -24,7 +23,7 @@ pub unsafe extern "system" fn wnd_proc(
     hwnd: HWND,
     msg: u32,
     wparam: WPARAM,
-    lparam: LPARAM
+    lparam: LPARAM,
 ) -> LRESULT {
     let window_ptr = (unsafe { GetWindowLongPtrW(hwnd, GWLP_USERDATA) }) as *mut WindowState;
 
@@ -50,27 +49,31 @@ pub unsafe extern "system" fn wnd_proc(
         WM_SIZE => {
             let size = Size::wh(
                 ((lparam.0 as u32) & 0xffff) as usize,
-                (((lparam.0 as u32) >> 16) & 0xffff) as usize
+                (((lparam.0 as u32) >> 16) & 0xffff) as usize,
             );
 
-            window.engine.dispatch_event(EngineEvent::WindowResized { size });
+            window
+                .engine
+                .dispatch_event(EngineEvent::WindowResized { size });
 
             LRESULT(0)
         }
         WM_MOUSEMOVE => {
             let position = Point::xy(
                 (lparam.0 & 0xffff) as f32,
-                ((lparam.0 >> 16) & 0xffff) as f32
+                ((lparam.0 >> 16) & 0xffff) as f32,
             );
 
-            window.engine.dispatch_event(EngineEvent::MouseMove { position });
+            window
+                .engine
+                .dispatch_event(EngineEvent::MouseMove { position });
 
             LRESULT(0)
         }
         WM_LBUTTONDOWN => {
             let position = Point::xy(
                 (lparam.0 & 0xffff) as f32,
-                ((lparam.0 >> 16) & 0xffff) as f32
+                ((lparam.0 >> 16) & 0xffff) as f32,
             );
 
             window.engine.dispatch_event(EngineEvent::MouseDown {
@@ -83,7 +86,7 @@ pub unsafe extern "system" fn wnd_proc(
         WM_LBUTTONUP => {
             let position = Point::xy(
                 (lparam.0 & 0xffff) as f32,
-                ((lparam.0 >> 16) & 0xffff) as f32
+                ((lparam.0 >> 16) & 0xffff) as f32,
             );
 
             window.engine.dispatch_event(EngineEvent::MouseUp {
@@ -94,19 +97,11 @@ pub unsafe extern "system" fn wnd_proc(
             LRESULT(0)
         }
         WM_DESTROY => {
-            // TODO: handle error, make it multithreaded
-            unsafe {
-                PostThreadMessageW(
-                    GetCurrentThreadId(),
-                    custom_messages::WINDOWCLOSED,
-                    WPARAM(0),
-                    LPARAM(0)
-                ).unwrap();
-            }
+            window.engine.dispatch_event(EngineEvent::WindowDestroyed);
 
             LRESULT(0)
         }
-        _ => unsafe { DefWindowProcW(hwnd, msg, wparam, lparam) }
+        _ => unsafe { DefWindowProcW(hwnd, msg, wparam, lparam) },
     }
 }
 
@@ -124,7 +119,7 @@ impl WindowState {
         mode: WindowMode,
         backdrop: WindowBackdrop,
         factory: &D2DRendererFactory,
-        root: Box<dyn Element>
+        root: Box<dyn Element>,
     ) -> Result<Box<WindowState>> {
         let mut rect = RECT {
             left: 0,
@@ -161,7 +156,7 @@ impl WindowState {
                 None,
                 None,
                 Some(hinstance),
-                None
+                None,
             )?
         };
 
@@ -244,7 +239,7 @@ impl Window {
     pub fn build(
         self,
         hinstance: HINSTANCE,
-        factory: &D2DRendererFactory
+        factory: &D2DRendererFactory,
     ) -> Result<Box<WindowState>> {
         WindowState::build(
             hinstance,
@@ -254,7 +249,7 @@ impl Window {
             self.mode,
             self.backdrop,
             factory,
-            self.root
+            self.root,
         )
     }
 }
@@ -284,7 +279,7 @@ pub fn setup_window(hwnd: HWND, mode: WindowMode, backdrop: WindowBackdrop) -> R
             hwnd,
             DWMWA_USE_IMMERSIVE_DARK_MODE,
             &mode_type as *const _ as *const _,
-            std::mem::size_of::<BOOL>() as u32
+            std::mem::size_of::<BOOL>() as u32,
         )?;
     }
 
@@ -301,7 +296,7 @@ pub fn setup_window(hwnd: HWND, mode: WindowMode, backdrop: WindowBackdrop) -> R
             hwnd,
             DWMWA_SYSTEMBACKDROP_TYPE,
             &backdrop_type as *const _ as *const _,
-            std::mem::size_of::<DWMWINDOWATTRIBUTE>() as u32
+            std::mem::size_of::<DWMWINDOWATTRIBUTE>() as u32,
         )?;
     }
 

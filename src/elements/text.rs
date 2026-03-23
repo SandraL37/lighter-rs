@@ -120,7 +120,7 @@ impl TextPropsExt for Text {
 }
 
 impl LeafStylePropsExt for Text {
-    fn leaf_ctx(&mut self) -> (&mut LayoutStyle, &mut Vec<DeferredBinding>) {
+    fn ctx(&mut self) -> (&mut LayoutStyle, &mut Vec<DeferredBinding>) {
         (&mut self.layout_style, &mut self.deferred_bindings)
     }
 }

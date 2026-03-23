@@ -1,7 +1,10 @@
 use std::sync::Arc;
 
+use windows::Win32::{Foundation::*, System::Threading::*, UI::WindowsAndMessaging::*};
+
 use crate::{
     core::{
+        app::custom_messages,
         arena::{
             NodeArena,
             node::{NodeId, NodeKind},
@@ -88,6 +91,14 @@ impl<R: Renderer> Engine<R> {
                         }
                     }
                 }
+                EngineEvent::WindowDestroyed => unsafe {
+                    PostThreadMessageW(
+                        GetCurrentThreadId(),
+                        custom_messages::WINDOWCLOSED,
+                        WPARAM(0),
+                        LPARAM(0),
+                    )?;
+                },
                 _ => {}
             }
 

@@ -25,6 +25,7 @@ pub enum EngineEvent {
         position: Point<f32>,
         button: MouseButton,
     },
+    WindowDestroyed,
 }
 
 #[cfg_attr(feature = "debug", derive(Debug))]
