@@ -45,9 +45,11 @@ impl<R: Renderer> Engine<R> {
     }
 
     pub fn dispatch_event(&mut self, event: EngineEvent) {
+        let mut force_frame = false;
+
         let mut result = || -> Result<()> {
             match event {
-                EngineEvent::WindowCreated => self.frame()?,
+                EngineEvent::WindowCreated => force_frame = true,
                 EngineEvent::WindowResized { size: new_size } => {
                     let old_size = self.size;
 
@@ -99,10 +101,15 @@ impl<R: Renderer> Engine<R> {
                         LPARAM(0),
                     )?;
                 },
+                EngineEvent::DpiChanged(_rect, dpi) => {
+                    self.renderer.set_dpi(dpi)?;
+                    // self.arena.mark_dirty(self.root, DirtyFlags::LAYOUT)?;
+                    force_frame = true;
+                }
                 _ => {}
             }
 
-            if Runtime::has_updates() {
+            if Runtime::has_updates() || force_frame {
                 self.frame()?;
             }
 

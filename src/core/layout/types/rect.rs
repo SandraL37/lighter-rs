@@ -1,12 +1,22 @@
 use std::ops::Add;
 
+use windows::Win32::Foundation::RECT;
+
 use crate::core::layout::types::{point::Point, size::Size};
 
-#[cfg_attr(feature = "debug", derive(Debug))]
-#[derive(Clone, Copy, PartialEq)]
+#[derive(Debug, Clone, Copy, PartialEq)]
 pub struct Rect<T> {
     pub location: Point<T>,
     pub size: Size<T>,
+}
+
+impl From<RECT> for Rect<i32> {
+    fn from(rect: RECT) -> Self {
+        Self {
+            location: Point::xy(rect.left, rect.top),
+            size: Size::wh(rect.right - rect.left, rect.bottom - rect.top),
+        }
+    }
 }
 
 impl<T: Copy> Rect<T> {

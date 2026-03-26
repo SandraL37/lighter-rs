@@ -43,7 +43,10 @@ fn scene() -> Div {
                 .child(text(evenodd).color(color).font_size(20.0))
                 .child(
                     div()
+                        .align(Some(AlignItems::Center))
+                        .justify(Some(JustifyContent::Center))
                         .bg(Color::BLUE)
+                        .size(px(300.0))
                         .px(px(10.0))
                         .py(px(5.0))
                         .rounded(16.0)

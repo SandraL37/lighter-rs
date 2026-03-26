@@ -35,8 +35,8 @@ fn hit_test_inner(
     }
 
     let children = match arena.get_children(node_id) {
-        Ok(c) => c.clone(),
-        Err(_) => Vec::new(),
+        Ok(c) => c,
+        Err(_) => &Vec::new(),
     };
 
     let child_offset = Point::xy(bounds.location.x, bounds.location.y);

@@ -3,8 +3,11 @@ use crate::{
         app::engine::Engine,
         error::*,
         event::{EngineEvent, MouseButton},
-        layout::types::{point::Point, size::Size},
-        render::d2d::{D2DRenderer, D2DRendererFactory},
+        layout::types::{point::Point, rect::Rect, size::Size},
+        render::{
+            Dpi,
+            d2d::{D2DRenderer, D2DRendererFactory},
+        },
     },
     elements::{Element, div::div},
 };
@@ -13,7 +16,7 @@ use windows::{
     Win32::{
         Foundation::*,
         Graphics::{Dwm::*, Gdi::*},
-        UI::WindowsAndMessaging::*,
+        UI::{HiDpi::*, WindowsAndMessaging::*},
     },
     core::{HSTRING, PCWSTR},
 };
@@ -47,9 +50,14 @@ pub unsafe extern "system" fn wnd_proc(
             LRESULT(0)
         }
         WM_SIZE => {
+            // WM_SIZE lparam gives physical pixels for per-monitor DPI aware windows.
+            // Convert to logical DIPs since the engine and layout work in DIP units.
+            let dpi_scale = unsafe { GetDpiForWindow(hwnd) } as f32 / 96.0;
+            let dpi_scale = if dpi_scale == 0.0 { 1.0 } else { dpi_scale };
+
             let size = Size::wh(
-                ((lparam.0 as u32) & 0xffff) as usize,
-                (((lparam.0 as u32) >> 16) & 0xffff) as usize,
+                (((lparam.0 as u32) & 0xffff) as f32 / dpi_scale) as usize,
+                ((((lparam.0 as u32) >> 16) & 0xffff) as f32 / dpi_scale) as usize,
             );
 
             window
@@ -59,9 +67,12 @@ pub unsafe extern "system" fn wnd_proc(
             LRESULT(0)
         }
         WM_MOUSEMOVE => {
+            let dpi_scale = unsafe { GetDpiForWindow(hwnd) } as f32 / 96.0;
+            let dpi_scale = if dpi_scale == 0.0 { 1.0 } else { dpi_scale };
+
             let position = Point::xy(
-                (lparam.0 & 0xffff) as f32,
-                ((lparam.0 >> 16) & 0xffff) as f32,
+                (lparam.0 & 0xffff) as f32 / dpi_scale,
+                ((lparam.0 >> 16) & 0xffff) as f32 / dpi_scale,
             );
 
             window
@@ -71,9 +82,12 @@ pub unsafe extern "system" fn wnd_proc(
             LRESULT(0)
         }
         WM_LBUTTONDOWN => {
+            let dpi_scale = unsafe { GetDpiForWindow(hwnd) } as f32 / 96.0;
+            let dpi_scale = if dpi_scale == 0.0 { 1.0 } else { dpi_scale };
+
             let position = Point::xy(
-                (lparam.0 & 0xffff) as f32,
-                ((lparam.0 >> 16) & 0xffff) as f32,
+                (lparam.0 & 0xffff) as f32 / dpi_scale,
+                ((lparam.0 >> 16) & 0xffff) as f32 / dpi_scale,
             );
 
             window.engine.dispatch_event(EngineEvent::MouseDown {
@@ -84,9 +98,12 @@ pub unsafe extern "system" fn wnd_proc(
             LRESULT(0)
         }
         WM_LBUTTONUP => {
+            let dpi_scale = unsafe { GetDpiForWindow(hwnd) } as f32 / 96.0;
+            let dpi_scale = if dpi_scale == 0.0 { 1.0 } else { dpi_scale };
+
             let position = Point::xy(
-                (lparam.0 & 0xffff) as f32,
-                ((lparam.0 >> 16) & 0xffff) as f32,
+                (lparam.0 & 0xffff) as f32 / dpi_scale,
+                ((lparam.0 >> 16) & 0xffff) as f32 / dpi_scale,
             );
 
             window.engine.dispatch_event(EngineEvent::MouseUp {
@@ -96,9 +113,35 @@ pub unsafe extern "system" fn wnd_proc(
 
             LRESULT(0)
         }
+        WM_DPICHANGED => {
+            let dpi = Dpi::new(
+                (wparam.0 & 0xffff) as f32,
+                ((wparam.0 >> 16) & 0xffff) as f32,
+            );
+
+            let rect = Rect::from(unsafe { *(lparam.0 as *const RECT) });
+
+            window
+                .engine
+                .dispatch_event(EngineEvent::DpiChanged(rect, dpi));
+
+            unsafe {
+                SetWindowPos(
+                    hwnd,
+                    None,
+                    rect.location.x,
+                    rect.location.y,
+                    rect.size.width,
+                    rect.size.height,
+                    SWP_NOZORDER | SWP_NOACTIVATE,
+                )
+                .unwrap();
+            }
+
+            LRESULT(0)
+        }
         WM_DESTROY => {
             window.engine.dispatch_event(EngineEvent::WindowDestroyed);
-
             LRESULT(0)
         }
         _ => unsafe { DefWindowProcW(hwnd, msg, wparam, lparam) },
@@ -121,14 +164,29 @@ impl WindowState {
         factory: &D2DRendererFactory,
         root: Box<dyn Element>,
     ) -> Result<Box<WindowState>> {
+        // Scale logical size to physical pixels for the current system DPI.
+        // CreateWindowExW takes physical pixels when per-monitor DPI aware.
+        let system_dpi = unsafe { GetDpiForSystem() };
+        let dpi_scale = system_dpi as f32 / 96.0;
+
+        let physical_width = (size.width as f32 * dpi_scale) as i32;
+        let physical_height = (size.height as f32 * dpi_scale) as i32;
+
         let mut rect = RECT {
             left: 0,
             top: 0,
-            right: size.width as i32,
-            bottom: size.height as i32,
+            right: physical_width,
+            bottom: physical_height,
         };
+
         unsafe {
-            AdjustWindowRect(&mut rect, WS_OVERLAPPEDWINDOW, false)?;
+            AdjustWindowRectExForDpi(
+                &mut rect,
+                WS_OVERLAPPEDWINDOW,
+                false,
+                WS_EX_NOREDIRECTIONBITMAP,
+                system_dpi,
+            )?;
         }
 
         let window_width = rect.right - rect.left;

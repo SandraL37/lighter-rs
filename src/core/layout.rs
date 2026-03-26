@@ -23,8 +23,8 @@ use crate::core::{
     render::Renderer,
 };
 
-#[cfg_attr(feature = "debug", derive(Debug))]
-#[derive(Default, Clone)]
+
+#[derive(Debug, Default, Clone)]
 pub struct NodeLayout {
     pub style: LayoutStyle,
     pub unrounded: UnroundedLayout,

@@ -4,11 +4,11 @@ use std::rc::Rc;
 
 use crate::core::{
     arena::node::EventHandlers,
-    layout::types::{point::Point, size::Size},
+    layout::types::{point::Point, rect::Rect, size::Size},
+    render::Dpi,
 };
 
-#[cfg_attr(feature = "debug", derive(Debug))]
-#[derive(Clone, Copy)]
+#[derive(Debug, Clone, Copy)]
 pub enum EngineEvent {
     WindowCreated,
     WindowResized {
@@ -26,18 +26,17 @@ pub enum EngineEvent {
         button: MouseButton,
     },
     WindowDestroyed,
+    DpiChanged(Rect<i32>, Dpi),
 }
 
-#[cfg_attr(feature = "debug", derive(Debug))]
-#[derive(Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum MouseButton {
     Left,
     Right,
     Middle,
 }
 
-#[cfg_attr(feature = "debug", derive(Debug))]
-#[derive(Clone, Copy)]
+#[derive(Debug, Clone, Copy)]
 pub enum Event {
     Click,
     MouseEnter,

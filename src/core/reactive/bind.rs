@@ -12,7 +12,6 @@ use crate::core::{
 
 pub struct DeferredBinding(pub Box<dyn FnOnce(NodeId)>);
 
-#[cfg(feature = "debug")]
 impl std::fmt::Debug for DeferredBinding {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_tuple("DeferredBinding").finish()

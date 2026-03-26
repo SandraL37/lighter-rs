@@ -1,5 +1,5 @@
-#[cfg_attr(feature = "debug", derive(Debug))]
-#[derive(Clone, Copy, PartialEq, Eq)]
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct Size<T> {
     pub width: T,
     pub height: T,

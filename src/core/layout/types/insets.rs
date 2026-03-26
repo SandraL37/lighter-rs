@@ -1,5 +1,5 @@
-#[cfg_attr(feature = "debug", derive(Debug))]
-#[derive(Clone, Copy, PartialEq)]
+
+#[derive(Debug, Clone, Copy, PartialEq)]
 pub struct Insets<T> {
     pub top: T,
     pub right: T,

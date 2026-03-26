@@ -14,7 +14,7 @@ use windows::{
     },
     core::Interface,
 };
-use windows_numerics::{Matrix3x2, Vector2};
+use windows_numerics::Vector2;
 
 use crate::{
     core::{
@@ -23,7 +23,7 @@ use crate::{
             AvailableSpace,
             types::{point::Point, rect::Rect, size::Size},
         },
-        render::{RenderCommand, Renderer, d2d::cache::D2DCache},
+        render::{Dpi, RenderCommand, Renderer, d2d::cache::D2DCache},
         style::Color,
     },
     elements::text::TextProps,
@@ -114,24 +114,18 @@ impl D2DRendererFactory {
 
 impl D2DRendererFactory {
     pub fn create_renderer_for_hwnd(&self, hwnd: HWND, size: Size<usize>) -> Result<D2DRenderer> {
-        let dpi = unsafe {
+        let dpi = Dpi::uniform(unsafe {
             let raw = GetDpiForWindow(hwnd);
             if raw == 0 { 96.0 } else { raw as f32 }
-        };
+        });
 
-        let scale = 96.0 / dpi; // TODO: shouldn't this be dpi/96.0? why it works?
-
-        let swapchain = self.create_swapchain(hwnd, &size)?;
+        let swapchain = self.create_swapchain(hwnd, &size, &dpi)?;
         let d2d_device_context = self.create_device_context()?;
 
         unsafe {
             d2d_device_context.SetTextAntialiasMode(D2D1_TEXT_ANTIALIAS_MODE_CLEARTYPE);
-            d2d_device_context.SetDpi(dpi, dpi);
+            d2d_device_context.SetDpi(dpi.x, dpi.y);
             // swapchain.SetMaximumFrameLatency(1)?;
-        }
-
-        unsafe {
-            d2d_device_context.SetTransform(&Matrix3x2::scale(scale, scale)); // TODO: this is an escape hatch, fix in future
         }
 
         let bitmap = Self::create_target_bitmap(&d2d_device_context, &swapchain, dpi)?;
@@ -232,13 +226,16 @@ impl D2DRendererFactory {
         })
     }
 
-    fn create_swapchain(&self, hwnd: HWND, size: &Size<usize>) -> Result<DXGISwapChain> {
+    fn create_swapchain(&self, hwnd: HWND, size: &Size<usize>, dpi: &Dpi) -> Result<DXGISwapChain> {
         let adapter: DXGIAdapter = unsafe { self.dxgi_device.GetAdapter()?.cast()? };
         let factory: DXGIFactory = unsafe { adapter.GetParent()? };
 
+        let physical_width = (size.width as f32 * dpi.x / 96.0).round() as u32;
+        let physical_height = (size.height as f32 * dpi.y / 96.0).round() as u32;
+
         let desc = DXGI_SWAP_CHAIN_DESC1 {
-            Width: size.width as u32,
-            Height: size.height as u32,
+            Width: physical_width,
+            Height: physical_height,
             Format: DXGI_FORMAT_B8G8R8A8_UNORM,
             Stereo: FALSE,
             SampleDesc: DXGI_SAMPLE_DESC {
@@ -265,7 +262,7 @@ impl D2DRendererFactory {
     fn create_target_bitmap(
         d2d_device_context: &D2DDeviceContext,
         swapchain: &DXGISwapChain,
-        dpi: f32,
+        dpi: Dpi,
     ) -> Result<D2DBitmap> {
         let surface: DXGISurface = unsafe { swapchain.GetBuffer(0)? }; // TODO: check correctness
 
@@ -274,8 +271,8 @@ impl D2DRendererFactory {
                 format: DXGI_FORMAT_B8G8R8A8_UNORM,
                 alphaMode: D2D1_ALPHA_MODE_PREMULTIPLIED,
             },
-            dpiX: dpi,
-            dpiY: dpi,
+            dpiX: dpi.x,
+            dpiY: dpi.y,
             bitmapOptions: D2D1_BITMAP_OPTIONS_TARGET | D2D1_BITMAP_OPTIONS_CANNOT_DRAW, // TODO: Check correctness
             colorContext: std::mem::ManuallyDrop::new(None), // TODO: Check correctness
         };
@@ -296,24 +293,27 @@ pub struct D2DRenderer {
     d2d_device_context: D2DDeviceContext,
     target_bitmap: Option<D2DBitmap>,
     size: Size<usize>,
-    dpi: f32,
+    dpi: Dpi,
 
     cache: D2DCache,
 }
 
 impl D2DRenderer {
-    pub fn recreate_swapchain(&mut self, new_size: Size<usize>) -> Result<()> {
+    pub fn recreate_swapchain(&mut self, size: Size<usize>) -> Result<()> {
         unsafe {
             self.d2d_device_context.SetTarget(None);
         };
 
         self.target_bitmap = None;
 
+        let physical_width = (size.width as f32 * self.dpi.x / 96.0).round() as u32;
+        let physical_height = (size.height as f32 * self.dpi.y / 96.0).round() as u32;
+
         unsafe {
             self.swapchain.ResizeBuffers(
                 0,
-                new_size.width as u32,
-                new_size.height as u32,
+                physical_width,
+                physical_height,
                 DXGI_FORMAT_UNKNOWN,
                 DXGI_SWAP_CHAIN_FLAG(0),
             )?;
@@ -329,7 +329,7 @@ impl D2DRenderer {
 
         self.target_bitmap = Some(bitmap);
 
-        self.size = new_size;
+        self.size = size;
 
         Ok(())
     }
@@ -434,5 +434,13 @@ impl Renderer for D2DRenderer {
         unsafe { layout.GetMetrics(&mut metrics)? };
 
         Ok(Size::wh(metrics.width, metrics.height))
+    }
+
+    fn set_dpi(&mut self, dpi: super::Dpi) -> Result<()> {
+        self.dpi = dpi;
+
+        unsafe { self.d2d_device_context.SetDpi(dpi.x, dpi.y) };
+
+        Ok(())
     }
 }

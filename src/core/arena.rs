@@ -8,7 +8,7 @@ use crate::core::{
     reactive::dirty::{DirtyCounter, DirtyFlags},
 };
 
-#[cfg_attr(feature = "debug", derive(Debug))]
+#[derive(Debug)]
 pub struct NodeArena {
     data: slotmap::SlotMap<NodeId, NodeData>,
     layout: slotmap::SecondaryMap<NodeId, NodeLayout>,

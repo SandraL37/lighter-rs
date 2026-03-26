@@ -16,7 +16,7 @@ slotmap::new_key_type! {
     pub struct NodeId;
 }
 
-#[cfg_attr(feature = "debug", derive(Debug))]
+#[derive(Debug)]
 pub struct NodeData {
     pub kind: NodeKind,
     pub props: NodeProps,
@@ -24,8 +24,7 @@ pub struct NodeData {
     pub event_handlers: EventHandlers,
 }
 
-#[cfg_attr(feature = "debug", derive(Debug))]
-#[derive(Clone)]
+#[derive(Debug, Clone)]
 pub enum NodeKind {
     Div(Arc<DivProps>),
     Text(Arc<TextProps>),
@@ -50,7 +49,7 @@ impl NodeKind {
 }
 
 //  TODO: bench this
-#[cfg_attr(feature = "debug", derive(Debug))]
+#[derive(Debug)]
 pub struct NodeProps {
     pub opacity: f32,
     pub z_index: i32,
@@ -126,7 +125,6 @@ impl Default for EventHandlers {
     }
 }
 
-#[cfg(feature = "debug")]
 impl std::fmt::Debug for EventHandlers {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("EventHandlers")

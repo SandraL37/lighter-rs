@@ -19,7 +19,6 @@ use crate::{
     elements::Element,
 };
 
-#[cfg_attr(feature = "debug", derive(Debug))]
 pub struct Div {
     node_props: NodeProps,
     layout_props: LayoutStyle,
@@ -27,6 +26,16 @@ pub struct Div {
     children: Vec<Box<dyn Element>>,
     deferred_bindings: Vec<DeferredBinding>,
     event_handlers: EventHandlers,
+}
+
+impl std::fmt::Debug for Div {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("Div")
+            .field("node_props", &self.node_props)
+            .field("layout_props", &self.layout_props)
+            .field("div_props", &self.div_props)
+            .finish()
+    }
 }
 
 pub trait ChildrenExt: Sized {
@@ -70,8 +79,7 @@ pub trait DivPropsExt: Sized {
     }
 }
 
-#[cfg_attr(feature = "debug", derive(Debug))]
-#[derive(Clone)]
+#[derive(Debug, Clone)]
 pub struct DivProps {
     pub background_color: Color,
     pub corner_radius: f32, // TODO: make it DefiniteDimension

@@ -14,7 +14,7 @@ use crate::{
 
 pub mod d2d;
 
-#[cfg_attr(feature = "debug", derive(Debug))]
+#[derive(Debug)]
 pub enum RenderCommand {
     Rect {
         bounds: Rect<f32>,
@@ -43,6 +43,21 @@ impl RenderCommand {
     }
 }
 
+#[derive(Debug, Clone, Copy)]
+pub struct Dpi {
+    x: f32,
+    y: f32,
+}
+
+impl Dpi {
+    pub const fn uniform(dpi: f32) -> Self {
+        Self { x: dpi, y: dpi }
+    }
+    pub const fn new(x: f32, y: f32) -> Self {
+        Self { x, y }
+    }
+}
+
 pub trait Renderer: Sized {
     fn render(&mut self, commands: &[RenderCommand]) -> Result<()>;
     fn resize(&mut self, size: Size<usize>) -> Result<()>;
@@ -51,4 +66,5 @@ pub trait Renderer: Sized {
         text_props: &TextProps,
         available_size: Size<AvailableSpace>,
     ) -> Result<Size<f32>>;
+    fn set_dpi(&mut self, dpi: Dpi) -> Result<()>;
 }

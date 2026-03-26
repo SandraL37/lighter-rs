@@ -18,7 +18,7 @@ use crate::{
 };
 use std::sync::Arc;
 
-#[cfg_attr(feature = "debug", derive(Debug))]
+#[derive(Debug)]
 pub struct Text {
     node_props: NodeProps,
     layout_style: LayoutStyle,
@@ -27,8 +27,7 @@ pub struct Text {
     event_handlers: EventHandlers,
 }
 
-#[cfg_attr(feature = "debug", derive(Debug))]
-#[derive(Clone)]
+#[derive(Debug, Clone)]
 pub struct TextProps {
     pub content: Arc<str>,
     pub color: Color,
@@ -180,8 +179,7 @@ pub fn text(content: impl IntoTextContent) -> Text {
     .content(content)
 }
 
-#[cfg_attr(feature = "debug", derive(Debug))]
-#[derive(Clone, Copy, PartialEq, Hash, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Hash, Eq)]
 pub struct FontWeight(pub u16);
 
 impl FontWeight {
