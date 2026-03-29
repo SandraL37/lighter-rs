@@ -11,6 +11,7 @@ use crate::core::{
 #[derive(Debug, Clone, Copy)]
 pub enum EngineEvent {
     WindowCreated,
+    Tick,
     WindowResized {
         size: Size<usize>,
     },

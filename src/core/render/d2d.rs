@@ -7,6 +7,7 @@ use windows::{
             Direct2D::{Common::*, *},
             Direct3D::*,
             Direct3D11::*,
+            DirectComposition::*,
             DirectWrite::*,
             Dxgi::{Common::*, *},
         },
@@ -15,6 +16,7 @@ use windows::{
     core::Interface,
 };
 use windows_numerics::Vector2;
+use windows_numerics::Matrix3x2;
 
 use crate::{
     core::{
@@ -24,7 +26,7 @@ use crate::{
             types::{point::Point, rect::Rect, size::Size},
         },
         render::{Dpi, RenderCommand, Renderer, d2d::cache::D2DCache},
-        style::Color,
+        style::{Color, Transform},
     },
     elements::text::TextProps,
 };
@@ -81,6 +83,19 @@ impl From<Point<f32>> for Vector2 {
     }
 }
 
+impl From<Transform> for Matrix3x2 {
+    fn from(value: Transform) -> Self {
+        Matrix3x2 {
+            M11: value.matrix[0],
+            M12: value.matrix[1],
+            M21: value.matrix[2],
+            M22: value.matrix[3],
+            M31: value.matrix[4],
+            M32: value.matrix[5],
+        }
+    }
+}
+
 impl D2DRendererFactory {
     pub fn new() -> Result<Self> {
         // TODO: check if coinitializeex needed
@@ -119,11 +134,13 @@ impl D2DRendererFactory {
             if raw == 0 { 96.0 } else { raw as f32 }
         });
 
-        let swapchain = self.create_swapchain(hwnd, &size, &dpi)?;
+        let swapchain = self.create_swapchain(&size, &dpi)?;
         let d2d_device_context = self.create_device_context()?;
+        let (dcomp_device, dcomp_target, dcomp_visual) =
+            self.create_dcomp_for_hwnd(hwnd, &swapchain)?;
 
         unsafe {
-            d2d_device_context.SetTextAntialiasMode(D2D1_TEXT_ANTIALIAS_MODE_CLEARTYPE);
+            d2d_device_context.SetTextAntialiasMode(D2D1_TEXT_ANTIALIAS_MODE_GRAYSCALE); // TODO: add option for this
             d2d_device_context.SetDpi(dpi.x, dpi.y);
             // swapchain.SetMaximumFrameLatency(1)?;
         }
@@ -135,6 +152,9 @@ impl D2DRendererFactory {
             dwrite_factory: self.dwrite_factory.clone(),
             swapchain,
             d2d_device_context,
+            dcomp_device,
+            dcomp_target,
+            dcomp_visual,
             target_bitmap: Some(bitmap),
             size,
             dpi,
@@ -226,7 +246,7 @@ impl D2DRendererFactory {
         })
     }
 
-    fn create_swapchain(&self, hwnd: HWND, size: &Size<usize>, dpi: &Dpi) -> Result<DXGISwapChain> {
+    fn create_swapchain(&self, size: &Size<usize>, dpi: &Dpi) -> Result<DXGISwapChain> {
         let adapter: DXGIAdapter = unsafe { self.dxgi_device.GetAdapter()?.cast()? };
         let factory: DXGIFactory = unsafe { adapter.GetParent()? };
 
@@ -246,17 +266,36 @@ impl D2DRendererFactory {
             BufferCount: 2,
             Scaling: DXGI_SCALING_STRETCH,
             SwapEffect: DXGI_SWAP_EFFECT_FLIP_DISCARD,
-            AlphaMode: DXGI_ALPHA_MODE_UNSPECIFIED, // TODO: if i set premultiplied it crashes why?
+            AlphaMode: DXGI_ALPHA_MODE_PREMULTIPLIED,
             Flags: 0,
         };
 
         let swapchain: DXGISwapChain = unsafe {
             factory
-                .CreateSwapChainForHwnd(&self.d3d_device, hwnd, &desc, None, None)?
+                .CreateSwapChainForComposition(&self.d3d_device, &desc, None)?
                 .cast()?
         };
 
         Ok(swapchain)
+    }
+
+    fn create_dcomp_for_hwnd(
+        &self,
+        hwnd: HWND,
+        swapchain: &DXGISwapChain,
+    ) -> Result<(DCompDevice, DCompTarget, DCompVisual)> {
+        let dxgi_device: IDXGIDevice = self.dxgi_device.cast()?;
+        let dcomp_device: DCompDevice = unsafe { DCompositionCreateDevice(&dxgi_device)? };
+        let dcomp_target = unsafe { dcomp_device.CreateTargetForHwnd(hwnd, true)? };
+        let dcomp_visual = unsafe { dcomp_device.CreateVisual()? };
+
+        unsafe {
+            dcomp_visual.SetContent(swapchain)?;
+            dcomp_target.SetRoot(&dcomp_visual)?;
+            dcomp_device.Commit()?;
+        }
+
+        Ok((dcomp_device, dcomp_target, dcomp_visual))
     }
 
     fn create_target_bitmap(
@@ -291,6 +330,9 @@ pub struct D2DRenderer {
 
     swapchain: DXGISwapChain,
     d2d_device_context: D2DDeviceContext,
+    dcomp_device: DCompDevice,
+    dcomp_target: DCompTarget,
+    dcomp_visual: DCompVisual,
     target_bitmap: Option<D2DBitmap>,
     size: Size<usize>,
     dpi: Dpi,
@@ -337,6 +379,7 @@ impl D2DRenderer {
 
 impl Renderer for D2DRenderer {
     fn render(&mut self, commands: &[RenderCommand]) -> Result<()> {
+        let _ = (&self.dcomp_target, &self.dcomp_visual);
         if let Some(target_bitmap) = &self.target_bitmap {
             unsafe {
                 self.d2d_device_context.SetTarget(&*target_bitmap); // TODO: &* wtf
@@ -350,9 +393,13 @@ impl Renderer for D2DRenderer {
                             bounds,
                             corner_radius,
                             color,
+                            opacity,
+                            transform,
                             ..
                         } => {
-                            let brush = self.cache.get_solid_color_brush(color)?;
+                            self.d2d_device_context.SetTransform(&(*transform).into());
+                            let effective = color.with_alpha((color.a * *opacity).clamp(0.0, 1.0));
+                            let brush = self.cache.get_solid_color_brush(&effective)?;
 
                             let rect = D2D1_ROUNDED_RECT {
                                 rect: (*bounds).into(),
@@ -362,10 +409,19 @@ impl Renderer for D2DRenderer {
 
                             self.d2d_device_context.FillRoundedRectangle(&rect, &brush);
                         }
-                        RenderCommand::Text { bounds, props, .. } => {
+                        RenderCommand::Text {
+                            bounds,
+                            props,
+                            opacity,
+                            transform,
+                            ..
+                        } => {
+                            self.d2d_device_context.SetTransform(&(*transform).into());
                             let layout = self.cache.get_text_layout(props, bounds.size)?;
 
-                            let brush = self.cache.get_solid_color_brush(&props.color)?;
+                            let effective =
+                                props.color.with_alpha((props.color.a * *opacity).clamp(0.0, 1.0));
+                            let brush = self.cache.get_solid_color_brush(&effective)?;
 
                             self.d2d_device_context.DrawTextLayout(
                                 bounds.location.into(),
@@ -378,6 +434,9 @@ impl Renderer for D2DRenderer {
                         }
                     }
                 }
+
+                self.d2d_device_context
+                    .SetTransform(&Transform::IDENTITY.into());
 
                 let result = self.d2d_device_context.EndDraw(None, None);
 
@@ -393,6 +452,8 @@ impl Renderer for D2DRenderer {
                 if matches!(result, DXGI_ERROR_DEVICE_REMOVED | DXGI_ERROR_DEVICE_RESET) {
                     return Err(Error::DeviceLost);
                 }
+
+                self.dcomp_device.Commit()?;
             }
         } else {
             return Err(Error::DeviceLost); // TODO: check correctness

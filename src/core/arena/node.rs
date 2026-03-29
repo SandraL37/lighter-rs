@@ -22,6 +22,7 @@ pub struct NodeData {
     pub props: NodeProps,
     pub dirty: DirtyFlags,
     pub event_handlers: EventHandlers,
+    pub interaction: InteractionState,
 }
 
 #[derive(Debug, Clone)]
@@ -132,5 +133,15 @@ impl std::fmt::Debug for EventHandlers {
             .field("on_mouse_enter", &self.on_mouse_enter.is_some())
             .field("on_mouse_leave", &self.on_mouse_leave.is_some())
             .finish()
+    }
+}
+
+bitflags::bitflags! {
+    #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+    pub struct InteractionState: u8 {
+        const HOVER = 1 << 0;
+        const ACTIVE = 1 << 1;
+        const FOCUS = 1 << 2;
+        const DISABLED = 1 << 3;
     }
 }

@@ -1,4 +1,10 @@
-use windows::Win32::Graphics::{Direct2D::*, Direct3D11::*, DirectWrite::*, Dxgi::*};
+use windows::Win32::Graphics::{
+    Direct2D::*,
+    Direct3D11::*,
+    DirectComposition::*,
+    DirectWrite::*,
+    Dxgi::*,
+};
 
 pub type D3DDevice = ID3D11Device5;
 
@@ -17,3 +23,7 @@ pub type DXGIDevice = IDXGIDevice4;
 pub type DXGIFactory = IDXGIFactory7;
 pub type DXGISwapChain = IDXGISwapChain3;
 pub type DXGISurface = IDXGISurface2;
+
+pub type DCompDevice = IDCompositionDevice;
+pub type DCompTarget = IDCompositionTarget;
+pub type DCompVisual = IDCompositionVisual;
