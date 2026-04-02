@@ -4,6 +4,11 @@ use crate::core::arena::node::NodeId;
 pub enum Error {
     #[error("Node not found")]
     NodeNotFound(NodeId),
+    #[error("Node kind mismatch: expected {expected}, found {found}")]
+    NodeKindMismatch {
+        expected: &'static str,
+        found: &'static str,
+    },
     #[error("Renderer error: {0}")] // TODO: Make this universal
     D2DRendererError(windows_result::Error),
     #[error("Renderer error: {0}")] // TODO: Make this universal

@@ -127,6 +127,14 @@ pub unsafe extern "system" fn wnd_proc(
 
             LRESULT(0)
         }
+        WM_SETFOCUS => {
+            window.engine.dispatch_event(EngineEvent::WindowFocusGained);
+            LRESULT(0)
+        }
+        WM_KILLFOCUS => {
+            window.engine.dispatch_event(EngineEvent::WindowFocusLost);
+            LRESULT(0)
+        }
         WM_DESTROY => {
             window.engine.dispatch_event(EngineEvent::WindowDestroyed);
             LRESULT(0)

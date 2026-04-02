@@ -17,7 +17,7 @@ use crate::{
     elements::{
         Element,
         div::{
-            props::DivProps,
+            props::DivBuildProps,
             style::{DivStyle, DivStyleBuilder},
         },
     },
@@ -26,29 +26,14 @@ use crate::{
 /// # Div
 #[derive(Default)]
 pub struct Div {
-    props: DivProps,
-    hover_props: Option<DivProps>,
+    props: DivBuildProps,
     children: Vec<Box<dyn Element>>,
     event_handlers: EventHandlers,
 }
 
 impl Div {
-    pub fn style(mut self, f: impl Fn(DivProps) -> DivProps) -> Self {
+    pub fn style(mut self, f: impl Fn(DivBuildProps) -> DivBuildProps) -> Self {
         self.props = f(self.props);
-        self
-    }
-
-    pub fn hover(mut self, f: impl Fn(DivProps) -> DivProps) -> Self {
-        if let Some(hover_props) = self.hover_props {
-            self.hover_props = Some(f(hover_props));
-        } else {
-            self.hover_props = Some(DivProps {
-                node: self.props.node.clone(),
-                layout: self.props.layout.clone(),
-                div: self.props.div.clone(),
-                bindings: Vec::new(),
-            });
-        }
         self
     }
 }
@@ -63,7 +48,7 @@ pub trait ChildrenExt: Sized {
 }
 
 impl HasDeferredBindings for Div {
-    type Style = DivProps;
+    type Style = DivBuildProps;
 
     fn bindings(&mut self) -> &mut Vec<DeferredBinding> {
         &mut self.props.bindings
@@ -110,7 +95,6 @@ impl std::fmt::Debug for Div {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("Div")
             .field("props", &self.props)
-            .field("hover", &self.hover_props)
             .field("children_len", &self.children.len())
             .finish()
     }
@@ -120,12 +104,11 @@ impl Element for Div {
     fn build(self: Box<Self>, arena: &mut NodeArena, parent: Option<NodeId>) -> Result<NodeId> {
         let Div {
             props,
-            hover_props,
             children,
             event_handlers,
         } = *self;
 
-        let DivProps {
+        let DivBuildProps {
             node,
             layout,
             div,
@@ -155,8 +138,7 @@ impl Element for Div {
 /// # Div
 pub fn div() -> Div {
     Div {
-        props: DivProps::default(),
-        hover_props: Some(DivProps::default()),
+        props: DivBuildProps::default(),
         children: Vec::new(),
         event_handlers: EventHandlers::default(),
     }

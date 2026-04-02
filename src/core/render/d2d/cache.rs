@@ -1,8 +1,8 @@
-use std::{ collections::HashMap, sync::Arc };
+use std::{collections::HashMap, sync::Arc};
 
 use windows::core::HSTRING;
 
-use crate::{ core::render::d2d::*, elements::text::FontWeight };
+use crate::{core::render::d2d::*, elements::text::style::FontWeight};
 
 // TODO: everything is hashmap, needs to be fixed
 // TODO: invalidate when DeviceContext is invalid
@@ -36,14 +36,12 @@ impl D2DCache {
             self.dwrite_factory.CreateTextFormat(
                 &HSTRING::from(props.font_family.to_string()),
                 None,
-                &[
-                    DWRITE_FONT_AXIS_VALUE {
-                        axisTag: DWRITE_FONT_AXIS_TAG_WEIGHT,
-                        value: props.font_weight.0 as f32,
-                    },
-                ],
+                &[DWRITE_FONT_AXIS_VALUE {
+                    axisTag: DWRITE_FONT_AXIS_TAG_WEIGHT,
+                    value: props.font_weight.0 as f32,
+                }],
                 props.font_size,
-                &HSTRING::from("")
+                &HSTRING::from(""),
             )?
         };
 
@@ -54,7 +52,7 @@ impl D2DCache {
     pub fn get_text_layout(
         &mut self,
         props: &TextStyle,
-        max_size: Size<f32>
+        max_size: Size<f32>,
     ) -> Result<DWriteTextLayout> {
         let fmt_key = TextFormatKey::from(props);
         let key = TextLayoutKey::from(props, max_size, fmt_key);
@@ -85,7 +83,8 @@ impl D2DCache {
         }
 
         let brush = unsafe {
-            self.d2d_device_context.CreateSolidColorBrush(&(*color).into(), None)?
+            self.d2d_device_context
+                .CreateSolidColorBrush(&(*color).into(), None)?
         };
 
         self.solid_color_brush.insert(key, brush.clone());

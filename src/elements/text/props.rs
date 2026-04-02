@@ -1,23 +1,22 @@
 use crate::{
     core::{
         arena::node::{NodeStyle, NodeStyleBuilder},
-        layout::{ContainerStyleBuilder, LayoutStyle, LeafStyleBuilder},
+        layout::{LayoutStyle, LeafStyleBuilder},
         reactive::bind::{DeferredBinding, HasDeferredBindings},
     },
-    elements::div::{DivStyle, DivStyleBuilder},
+    elements::text::{TextStyle, style::TextStyleBuilder},
 };
 
 #[derive(Debug, Default)]
-pub struct DivBuildProps {
+pub struct TextBuildProps {
     pub(crate) node: NodeStyle,
     pub(crate) layout: LayoutStyle,
-    pub(crate) div: DivStyle,
-
+    pub(crate) text: TextStyle,
     pub(crate) bindings: Vec<DeferredBinding>,
 }
 
-impl HasDeferredBindings for DivBuildProps {
-    type Style = DivBuildProps;
+impl HasDeferredBindings for TextBuildProps {
+    type Style = TextBuildProps;
 
     fn bindings(&mut self) -> &mut Vec<DeferredBinding> {
         &mut self.bindings
@@ -28,22 +27,20 @@ impl HasDeferredBindings for DivBuildProps {
     }
 }
 
-impl LeafStyleBuilder for DivBuildProps {
+impl LeafStyleBuilder for TextBuildProps {
     fn layout_style(style: &mut Self::Style) -> &mut LayoutStyle {
         &mut style.layout
     }
 }
 
-impl ContainerStyleBuilder for DivBuildProps {}
-
-impl NodeStyleBuilder for DivBuildProps {
+impl NodeStyleBuilder for TextBuildProps {
     fn node_style(style: &mut Self::Style) -> &mut NodeStyle {
         &mut style.node
     }
 }
 
-impl DivStyleBuilder for DivBuildProps {
-    fn div_style(style: &mut Self::Style) -> &mut DivStyle {
-        &mut style.div
+impl TextStyleBuilder for TextBuildProps {
+    fn text_style(style: &mut Self::Style) -> &mut TextStyle {
+        &mut style.text
     }
 }

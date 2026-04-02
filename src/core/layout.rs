@@ -205,6 +205,14 @@ pub trait ContainerStyleBuilder: LeafStyleBuilder {
         self
     }
 
+    fn flex_column(self) -> Self {
+        self.flex_direction(FlexDirection::Column)
+    }
+
+    fn flex_row(self) -> Self {
+        self.flex_direction(FlexDirection::Row)
+    }
+
     fn flex_wrap(mut self, wrap: impl Into<MaybeSignal<FlexWrap>>) -> Self {
         self.bind(
             |style| &mut Self::layout_style(style).flex_wrap,

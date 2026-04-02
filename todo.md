@@ -4,19 +4,19 @@
 
 ### Phase 0 - Baseline and Safety
 
-- [ ] P0.1 create a dedicated branch for the state/interaction refactor.
-- [ ] P0.2 define baseline behavior snapshots for hover, click, and resize sample apps (video/gif + expected logs).
-- [ ] P0.3 add a short architecture note documenting current runtime data ownership across `NodeData`, `NodeLayout`, and renderer commands.
-- [ ] P0.4 add compile-time guards/tests for no panic paths in interaction code.
-- [ ] P0.5 add a minimal benchmark scene for many hoverable nodes to track regressions during refactor.
+- [x] P0.1 create a dedicated branch for the state/interaction refactor.
+- [x] P0.2 define baseline behavior snapshots for hover, click, and resize sample apps (video/gif + expected logs).
+- [x] P0.3 add a short architecture note documenting current runtime data ownership across `NodeData`, `NodeLayout`, and renderer commands.
+- [x] P0.4 add compile-time guards/tests for no panic paths in interaction code.
+- [x] P0.5 add a minimal benchmark scene for many hoverable nodes to track regressions during refactor.
 
 ### Phase 1 - Runtime Data Model Hardening
 
-- [ ] P1.1 keep runtime split: `NodeStyle` (shared), element style (`DivStyle`/`TextStyle`), and `LayoutStyle` in `NodeLayout`.
-- [ ] P1.2 explicitly separate build-time style containers from runtime style state types (no deferred bindings in runtime structs).
-- [ ] P1.3 replace `unreachable!` downcasts in `NodeKind` with safe typed accessors that return `Result`.
-- [ ] P1.4 add `NodeStateFlags` helper methods for hover/active/focus/disabled checks to reduce bitflag boilerplate.
-- [ ] P1.5 add node-level state metadata needed later for focus and transitions (example: focusable, disabled source, transition config handle).
+- [x] P1.1 keep runtime split: `NodeStyle` (shared), element style (`DivStyle`/`TextStyle`), and `LayoutStyle` in `NodeLayout`.
+- [x] P1.2 explicitly separate build-time style containers from runtime style state types (no deferred bindings in runtime structs).
+- [x] P1.3 replace `unreachable!` downcasts in `NodeKind` with safe typed accessors that return `Result`.
+- [x] P1.4 add `NodeStateFlags` helper methods for hover/active/focus/disabled checks to reduce bitflag boilerplate.
+- [x] P1.5 add node-level state metadata needed later for focus and transitions (example: focusable, disabled source, transition config handle).
 
 ### Phase 2 - Event Pipeline Simplification
 
@@ -133,7 +133,7 @@
 
 ## [LESS IMPORTANT]
 
-- [ ] deduplicate layout style builder code (`src/core/layout.rs`): `ContainerStylePropsImpl` and `LeafStylePropsExt` duplicate many setters (`w/h/size/max_* /m`), increasing maintenance cost and inconsistency risk; extract shared helper/macro.
+- [x] deduplicate layout style builder code (`src/core/layout.rs`): `ContainerStylePropsImpl` and `LeafStylePropsExt` duplicate many setters (`w/h/size/max_* /m`), increasing maintenance cost and inconsistency risk; extract shared helper/macro.
 - [ ] reduce clone pressure during layout (`src/core/layout/engine.rs`): `node_kind.clone()` and `style.clone()` are done in `compute_child_layout`; borrow where possible or split read paths to avoid repeated cloning.
 - [ ] harden type-safe node downcasts (`src/core/arena/node.rs`): replace `unreachable!("Not a div/text")` in `as_div_mut`/`as_text_mut` with safe error-returning APIs to avoid undefined behavior patterns during future element expansion.
 - [ ] debug devtools: expand diagnostics for layout tree, dirty flags, event paths, and cache stats to reduce time spent debugging framework internals.

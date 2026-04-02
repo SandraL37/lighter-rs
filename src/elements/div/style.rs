@@ -18,7 +18,9 @@ pub trait DivStyleBuilder: HasDeferredBindings + Sized {
             color,
             DirtyFlags::PAINT,
             |data, _, val| {
-                data.kind.as_div_mut().background_color = val;
+                if let Ok(div) = data.kind.as_div_mut() {
+                    div.background_color = val;
+                }
             },
         );
         self
@@ -30,7 +32,9 @@ pub trait DivStyleBuilder: HasDeferredBindings + Sized {
             radius,
             DirtyFlags::PAINT,
             |data, _, val| {
-                data.kind.as_div_mut().corner_radius = val;
+                if let Ok(div) = data.kind.as_div_mut() {
+                    div.corner_radius = val;
+                }
             },
         );
         self

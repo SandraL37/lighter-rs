@@ -4,11 +4,11 @@ use windows::{
     Win32::{
         Foundation::*,
         Graphics::{
-            Direct2D::{ Common::*, * },
+            Direct2D::{Common::*, *},
             Direct3D::*,
             Direct3D11::*,
             DirectWrite::*,
-            Dxgi::{ Common::*, * },
+            Dxgi::{Common::*, *},
         },
         UI::HiDpi::*,
     },
@@ -19,11 +19,14 @@ use windows_numerics::Vector2;
 use crate::{
     core::{
         error::*,
-        layout::{ AvailableSpace, types::{ point::Point, rect::Rect, size::Size } },
-        render::{ Dpi, RenderCommand, Renderer, d2d::cache::D2DCache },
+        layout::{
+            AvailableSpace,
+            types::{point::Point, rect::Rect, size::Size},
+        },
+        render::{Dpi, RenderCommand, Renderer, d2d::cache::D2DCache},
         style::Color,
     },
-    elements::text::TextStyle,
+    elements::text::style::TextStyle,
 };
 
 pub mod cache;
@@ -113,11 +116,7 @@ impl D2DRendererFactory {
     pub fn create_renderer_for_hwnd(&self, hwnd: HWND, size: Size<usize>) -> Result<D2DRenderer> {
         let dpi = Dpi::uniform(unsafe {
             let raw = GetDpiForWindow(hwnd);
-            if raw == 0 {
-                96.0
-            } else {
-                raw as f32
-            }
+            if raw == 0 { 96.0 } else { raw as f32 }
         });
 
         let swapchain = self.create_swapchain(hwnd, &size, &dpi)?;
@@ -153,14 +152,14 @@ impl D2DRendererFactory {
                 None,
                 D3D_DRIVER_TYPE_HARDWARE,
                 HMODULE::default(),
-                D3D11_CREATE_DEVICE_BGRA_SUPPORT |
-                    D3D11_CREATE_DEVICE_SINGLETHREADED |
-                    D3D11_CREATE_DEVICE_DEBUG,
+                D3D11_CREATE_DEVICE_BGRA_SUPPORT
+                    | D3D11_CREATE_DEVICE_SINGLETHREADED
+                    | D3D11_CREATE_DEVICE_DEBUG,
                 Some(&feature_levels),
                 D3D11_SDK_VERSION,
                 Some(&mut d3d_device),
                 None,
-                None
+                None,
             )?;
             #[cfg(not(debug_assertions))]
             D3D11CreateDevice(
@@ -172,14 +171,14 @@ impl D2DRendererFactory {
                 D3D11_SDK_VERSION,
                 Some(&mut d3d_device),
                 None,
-                None
+                None,
             )?;
         }
 
         let Some(d3d_device) = d3d_device else {
-            return Err(
-                Error::GenericRendererError("D3D11CreateDevice failed creating ID3D11Device".into())
-            );
+            return Err(Error::GenericRendererError(
+                "D3D11CreateDevice failed creating ID3D11Device".into(),
+            ));
         };
 
         Ok(d3d_device.cast()?)
@@ -201,9 +200,8 @@ impl D2DRendererFactory {
             debugLevel: windows::Win32::Graphics::Direct2D::D2D1_DEBUG_LEVEL_NONE,
         };
 
-        let d2d_factory: D2DFactory = unsafe {
-            D2D1CreateFactory(D2D1_FACTORY_TYPE_SINGLE_THREADED, Some(&options))?
-        };
+        let d2d_factory: D2DFactory =
+            unsafe { D2D1CreateFactory(D2D1_FACTORY_TYPE_SINGLE_THREADED, Some(&options))? };
 
         Ok(d2d_factory)
     }
@@ -221,9 +219,11 @@ impl D2DRendererFactory {
     }
 
     fn create_device_context(&self) -> Result<D2DDeviceContext> {
-        Ok(unsafe { self.d2d_device.CreateDeviceContext(
-                D2D1_DEVICE_CONTEXT_OPTIONS_ENABLE_MULTITHREADED_OPTIMIZATIONS
-            )? }) // TODO: change to multithreading
+        Ok(unsafe {
+            self.d2d_device.CreateDeviceContext(
+                D2D1_DEVICE_CONTEXT_OPTIONS_ENABLE_MULTITHREADED_OPTIMIZATIONS,
+            )?
+        }) // TODO: change to multithreading
     }
 
     fn create_swapchain(&self, hwnd: HWND, size: &Size<usize>, dpi: &Dpi) -> Result<DXGISwapChain> {
@@ -251,7 +251,9 @@ impl D2DRendererFactory {
         };
 
         let swapchain: DXGISwapChain = unsafe {
-            factory.CreateSwapChainForHwnd(&self.d3d_device, hwnd, &desc, None, None)?.cast()?
+            factory
+                .CreateSwapChainForHwnd(&self.d3d_device, hwnd, &desc, None, None)?
+                .cast()?
         };
 
         Ok(swapchain)
@@ -260,7 +262,7 @@ impl D2DRendererFactory {
     fn create_target_bitmap(
         d2d_device_context: &D2DDeviceContext,
         swapchain: &DXGISwapChain,
-        dpi: Dpi
+        dpi: Dpi,
     ) -> Result<D2DBitmap> {
         let surface: DXGISurface = unsafe { swapchain.GetBuffer(0)? }; // TODO: check correctness
 
@@ -313,14 +315,14 @@ impl D2DRenderer {
                 physical_width,
                 physical_height,
                 DXGI_FORMAT_UNKNOWN,
-                DXGI_SWAP_CHAIN_FLAG(0)
+                DXGI_SWAP_CHAIN_FLAG(0),
             )?;
         }
 
         let bitmap = D2DRendererFactory::create_target_bitmap(
             &self.d2d_device_context,
             &self.swapchain,
-            self.dpi
+            self.dpi,
         )?;
 
         unsafe {
@@ -341,11 +343,17 @@ impl Renderer for D2DRenderer {
             unsafe {
                 self.d2d_device_context.SetTarget(&*target_bitmap); // TODO: &* wtf
                 self.d2d_device_context.BeginDraw();
-                self.d2d_device_context.Clear(Some(&Color::TRANSPARENT.into()));
+                self.d2d_device_context
+                    .Clear(Some(&Color::TRANSPARENT.into()));
 
                 for command in commands {
                     match command {
-                        RenderCommand::Rect { bounds, corner_radius, color, .. } => {
+                        RenderCommand::Rect {
+                            bounds,
+                            corner_radius,
+                            color,
+                            ..
+                        } => {
                             let brush = self.cache.get_solid_color_brush(color)?;
 
                             let rect = D2D1_ROUNDED_RECT {
@@ -366,8 +374,8 @@ impl Renderer for D2DRenderer {
                                 &layout,
                                 &brush,
                                 None, // TODO: check correctness
-                                0, // TODO: check correctness
-                                D2D1_DRAW_TEXT_OPTIONS_ENABLE_COLOR_FONT
+                                0,    // TODO: check correctness
+                                D2D1_DRAW_TEXT_OPTIONS_ENABLE_COLOR_FONT,
                             );
                         }
                     }
@@ -375,7 +383,9 @@ impl Renderer for D2DRenderer {
 
                 let result = self.d2d_device_context.EndDraw(None, None);
 
-                if let Err(e) = result && e.code() == D2DERR_RECREATE_TARGET {
+                if let Err(e) = result
+                    && e.code() == D2DERR_RECREATE_TARGET
+                {
                     return Err(Error::DeviceLost);
                 }
 
@@ -402,7 +412,7 @@ impl Renderer for D2DRenderer {
     fn measure_text(
         &mut self,
         text_props: &TextStyle,
-        available_size: Size<AvailableSpace>
+        available_size: Size<AvailableSpace>,
     ) -> Result<Size<f32>> {
         let max_width = match available_size.width {
             AvailableSpace::Definite(px) => px,
@@ -417,7 +427,8 @@ impl Renderer for D2DRenderer {
         let fmt = self.cache.get_text_format(text_props)?;
         let utf16: Vec<u16> = text_props.content.encode_utf16().collect();
         let layout = unsafe {
-            self.dwrite_factory.CreateTextLayout(&utf16, &fmt, max_width, max_height)?
+            self.dwrite_factory
+                .CreateTextLayout(&utf16, &fmt, max_width, max_height)?
         };
 
         let mut metrics = DWRITE_TEXT_METRICS::default();

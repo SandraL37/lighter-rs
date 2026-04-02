@@ -3,10 +3,13 @@ use std::sync::Arc;
 use crate::{
     core::{
         error::*,
-        layout::{ AvailableSpace, types::{ rect::Rect, size::Size } },
-        style::{ Color, Transform },
+        layout::{
+            AvailableSpace,
+            types::{rect::Rect, size::Size},
+        },
+        style::{Color, Transform},
     },
-    elements::text::TextStyle,
+    elements::text::style::TextStyle,
 };
 
 pub mod d2d;
@@ -61,7 +64,7 @@ pub trait Renderer: Sized {
     fn measure_text(
         &mut self,
         text_props: &TextStyle,
-        available_size: Size<AvailableSpace>
+        available_size: Size<AvailableSpace>,
     ) -> Result<Size<f32>>;
     fn set_dpi(&mut self, dpi: Dpi) -> Result<()>;
 }

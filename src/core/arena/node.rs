@@ -2,22 +2,48 @@ use std::{rc::Rc, sync::Arc};
 
 use crate::{
     core::{
+        error::*,
+        event::EventContext,
         reactive::{bind::HasDeferredBindings, dirty::DirtyFlags, signal::MaybeSignal},
         style::Transform,
     },
-    elements::{div::style::DivStyle, text::TextStyle},
+    elements::{div::style::DivStyle, text::style::TextStyle},
 };
 
 slotmap::new_key_type! {
     pub struct NodeId;
 }
 
+// TODO: Check coherence.
+#[derive(Debug, Clone, Copy)]
+pub struct NodeRuntimeMeta {
+    pub focusable: bool,
+    pub pointer_events: bool,
+    pub transition_profile_id: Option<u16>,
+}
+
+impl Default for NodeRuntimeMeta {
+    fn default() -> Self {
+        Self {
+            focusable: false,
+            pointer_events: true,
+            transition_profile_id: None,
+        }
+    }
+}
+
 #[derive(Debug)]
 pub struct NodeData {
+    // Element-specific visual payload (DivStyle/TextStyle)
     pub kind: NodeKind,
-    pub props: NodeStyle,
+    // Shared node visual style (opacity/z/transform)
+    pub style: NodeStyle,
+    // Dirty flags for render/layout invalidation.
     pub dirty: DirtyFlags,
+    // Interaction bits (hover/active/focus/disabled)
     pub interaction_state: InteractionState,
+    // Runtime metadata used by focus/transition/event routing.
+    pub runtime_meta: NodeRuntimeMeta,
     pub event_handlers: EventHandlers,
 }
 
@@ -28,19 +54,31 @@ pub enum NodeKind {
 }
 
 impl NodeKind {
-    pub fn as_div_mut(&mut self) -> &mut DivStyle {
-        if let NodeKind::Div(props) = self {
-            Arc::make_mut(props)
-        } else {
-            unreachable!("Not a div"); // TODO: check correctness
+    #[cold]
+    fn kind_name(&self) -> &'static str {
+        match self {
+            NodeKind::Div(_) => "Div",
+            NodeKind::Text(_) => "Text",
         }
     }
 
-    pub fn as_text_mut(&mut self) -> &mut TextStyle {
-        if let NodeKind::Text(props) = self {
-            Arc::make_mut(props)
-        } else {
-            unreachable!("Not a text");
+    pub fn as_div_mut(&mut self) -> Result<&mut DivStyle> {
+        match self {
+            NodeKind::Div(props) => Ok(Arc::make_mut(props)),
+            _ => Err(Error::NodeKindMismatch {
+                expected: "Div",
+                found: self.kind_name(),
+            }),
+        }
+    }
+
+    pub fn as_text_mut(&mut self) -> Result<&mut TextStyle> {
+        match self {
+            NodeKind::Text(props) => Ok(Arc::make_mut(props)),
+            _ => Err(Error::NodeKindMismatch {
+                expected: "Text",
+                found: self.kind_name(),
+            }),
         }
     }
 }
@@ -72,7 +110,7 @@ pub trait NodeStyleBuilder: HasDeferredBindings + Sized {
             value,
             DirtyFlags::PAINT,
             |data, _, val| {
-                data.props.opacity = val;
+                data.style.opacity = val;
             },
         );
         self
@@ -84,7 +122,7 @@ pub trait NodeStyleBuilder: HasDeferredBindings + Sized {
             value,
             DirtyFlags::PAINT,
             |data, _, val| {
-                data.props.z_index = val;
+                data.style.z_index = val;
             },
         );
         self
@@ -97,14 +135,14 @@ pub trait NodeStyleBuilder: HasDeferredBindings + Sized {
             value,
             DirtyFlags::PAINT,
             |data, _, val| {
-                data.props.transform = val;
+                data.style.transform = val;
             },
         );
         self
     }
 }
 
-pub type EventCallback = Rc<dyn Fn()>;
+pub type EventCallback = Rc<dyn Fn(&mut EventContext)>;
 
 pub struct EventHandlers {
     pub on_click: Option<EventCallback>,
@@ -139,5 +177,35 @@ bitflags::bitflags! {
         const ACTIVE = 1 << 1;
         const FOCUS = 1 << 2;
         const DISABLED = 1 << 3;
+    }
+}
+
+impl InteractionState {
+    pub fn set_flag(&mut self, flag: InteractionState, on: bool) {
+        if on {
+            self.insert(flag);
+        } else {
+            self.remove(flag);
+        }
+    }
+
+    #[inline(always)]
+    pub fn is_hovered(self) -> bool {
+        self.contains(InteractionState::HOVER)
+    }
+
+    #[inline(always)]
+    pub fn is_active(self) -> bool {
+        self.contains(InteractionState::ACTIVE)
+    }
+
+    #[inline(always)]
+    pub fn is_focused(self) -> bool {
+        self.contains(InteractionState::FOCUS)
+    }
+
+    #[inline(always)]
+    pub fn is_disabled(self) -> bool {
+        self.contains(InteractionState::DISABLED)
     }
 }

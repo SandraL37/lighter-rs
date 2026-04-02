@@ -1,28 +1,28 @@
 #![cfg(debug_assertions)]
 
-use crate::core::{arena::node::NodeId, event::EngineEvent};
+use crate::core::{app::engine::HoverDelta, event::EngineEvent};
 
-fn trace_interaction_enabled() -> bool {
-    std::env::var("LIGHTER_TRACE_INTERACTION")
-        .map(|v| v == "1")
-        .unwrap_or(false)
+macro_rules! trace {
+    ($x:expr, $y:block) => {
+        if std::env::var(concat!("LIGHTER_TRACE_", $x))
+            .map(|v| v == "1")
+            .unwrap_or(false)
+        $y
+    };
 }
 
 pub fn trace_engine_event(event: &EngineEvent) {
-    if trace_interaction_enabled() {
-        eprintln!("[engine][event] {:?}", event)
-    }
+    trace!("EVENT", { eprintln!("[engine][event] {:?}", event) })
 }
 
-pub fn trace_hover_change(
-    old_leaf: Option<NodeId>,
-    new_leaf: Option<NodeId>,
-    old_len: usize,
-    new_len: usize,
-) {
-    if trace_interaction_enabled() {
-        eprint!(
-            "[engine][hover] old_leaf={old_leaf:?} new_leaf={new_leaf:?} old_len={old_len} new_len={new_len}"
+pub fn trace_hover_change(hover_delta: &HoverDelta) {
+    trace!("HOVER", {
+        eprintln!(
+            "[engine][hover] old_leaf={:?} new_leaf={:?} old_len={} new_len={}",
+            hover_delta.old_leaf,
+            hover_delta.new_leaf,
+            hover_delta.leaving.len(),
+            hover_delta.entering.len(),
         )
-    }
+    })
 }

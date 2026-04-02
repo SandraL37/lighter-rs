@@ -16,13 +16,13 @@ use crate::{
             tree::TreeContext,
         },
         error::*,
-        event::{EngineEvent, MouseButton, hit_test::hit_test},
+        event::{EngineEvent, EventContext, EventPhase, MouseButton, hit_test::hit_test},
         layout::{
             AvailableSpace, LayoutContext,
             types::{point::Point, rect::Rect, size::Size},
         },
         reactive::{dirty::DirtyFlags, runtime::Runtime},
-        render::{RenderCommand, Renderer},
+        render::{Dpi, RenderCommand, Renderer},
         style::Transform,
     },
     elements::Element,
@@ -34,6 +34,38 @@ pub struct Engine<R: Renderer> {
     renderer: R,
     size: Size<usize>,
     hover_path: Vec<NodeId>,
+}
+
+#[derive(Debug)]
+pub struct HoverDelta {
+    leaving: Vec<NodeId>,
+    entering: Vec<NodeId>,
+    old_leaf: Option<NodeId>,
+    new_leaf: Option<NodeId>,
+}
+
+fn diff_hover_paths(old_path: &[NodeId], new_path: &[NodeId]) -> HoverDelta {
+    let leaving = old_path
+        .iter()
+        .filter(|id| !new_path.contains(id))
+        .copied()
+        .collect();
+
+    let entering = new_path
+        .iter()
+        .filter(|id| !old_path.contains(id))
+        .copied()
+        .collect();
+
+    let old_leaf = old_path.last().copied();
+    let new_leaf = new_path.last().copied();
+
+    HoverDelta {
+        leaving,
+        entering,
+        old_leaf,
+        new_leaf,
+    }
 }
 
 impl<R: Renderer> Engine<R> {
@@ -49,6 +81,161 @@ impl<R: Renderer> Engine<R> {
         })
     }
 
+    fn handle_window_created(&mut self, frame: &mut bool) -> Result<()> {
+        *frame = true;
+        Ok(())
+    }
+
+    fn handle_window_resized(&mut self, new_size: Size<usize>, frame: &mut bool) -> Result<()> {
+        let old_size = self.size;
+
+        if !(old_size == new_size) {
+            self.resize(new_size)?;
+            *frame = true;
+        }
+
+        Ok(())
+    }
+
+    fn handle_mouse_move(&mut self, position: Point<f32>) -> Result<()> {
+        let new_hover_path = hit_test(&self.arena, self.root, position);
+        let hover_delta = diff_hover_paths(&self.hover_path, &new_hover_path);
+
+        if new_hover_path != self.hover_path {
+            #[cfg(debug_assertions)]
+            if hover_delta.old_leaf != hover_delta.new_leaf {
+                #[cfg(debug_assertions)]
+                trace_hover_change(&hover_delta);
+            }
+
+            for node_id in hover_delta.leaving {
+                self.set_state(node_id, InteractionState::HOVER, false)?;
+                self.set_state(node_id, InteractionState::ACTIVE, false)?;
+            }
+
+            for node_id in hover_delta.entering {
+                self.set_state(node_id, InteractionState::HOVER, true)?;
+            }
+
+            if hover_delta.old_leaf != hover_delta.new_leaf {
+                if let Some(old) = hover_delta.old_leaf
+                    && let Ok(data) = self.arena.get_data(old)
+                    && let Some(cb) = &data.event_handlers.on_mouse_leave
+                {
+                    let mut ctx = EventContext::new(old, old, Some(position), EventPhase::Target);
+                    cb(&mut ctx)
+                }
+
+                if let Some(new) = hover_delta.new_leaf
+                    && let Ok(data) = self.arena.get_data(new)
+                    && let Some(cb) = &data.event_handlers.on_mouse_enter
+                {
+                    let mut ctx = EventContext::new(new, new, Some(position), EventPhase::Target);
+                    cb(&mut ctx)
+                }
+            }
+
+            self.hover_path = new_hover_path;
+        }
+
+        Ok(())
+    }
+
+    fn handle_mouse_down(&mut self, position: Point<f32>) -> Result<()> {
+        let hit_path = hit_test(&self.arena, self.root, position);
+
+        let Some(target) = hit_path.last().copied() else {
+            return Ok(());
+        };
+
+        for (idx, node_id) in hit_path.iter().rev().copied().enumerate() {
+            self.set_state(node_id, InteractionState::ACTIVE, true)?;
+
+            if let Ok(data) = self.arena.get_data(node_id) {
+                if let Some(cb) = &data.event_handlers.on_click {
+                    let phase = if idx == 0 {
+                        EventPhase::Target
+                    } else {
+                        EventPhase::Bubble
+                    };
+                    let mut ctx = EventContext::new(target, node_id, Some(position), phase);
+
+                    cb(&mut ctx);
+
+                    if ctx.is_propagation_stopped() {
+                        break;
+                    }
+                }
+            }
+        }
+
+        Ok(())
+    }
+
+    fn handle_mouse_up(&mut self, position: Point<f32>) -> Result<()> {
+        let hit_path = hit_test(&self.arena, self.root, position);
+
+        for &node_id in hit_path.iter().rev() {
+            self.set_state(node_id, InteractionState::ACTIVE, false)?;
+        }
+
+        Ok(())
+    }
+
+    fn handle_window_destroyed(&self) -> Result<()> {
+        unsafe {
+            PostThreadMessageW(
+                GetCurrentThreadId(),
+                custom_messages::WINDOWCLOSED,
+                WPARAM(0),
+                LPARAM(0),
+            )?;
+        }
+
+        Ok(())
+    }
+
+    fn handle_dpi_changed(
+        &mut self,
+        hwnd: HWND,
+        rect: Rect<i32>,
+        dpi: Dpi,
+        frame: &mut bool,
+    ) -> Result<()> {
+        self.renderer.set_dpi(dpi)?;
+
+        unsafe {
+            SetWindowPos(
+                hwnd,
+                None,
+                rect.location.x,
+                rect.location.y,
+                rect.size.width,
+                rect.size.height,
+                SWP_NOZORDER | SWP_NOACTIVATE,
+            )?
+        };
+
+        *frame = true;
+
+        Ok(())
+    }
+
+    fn handle_focus_gained(&self) -> Result<()> {
+        Ok(())
+    }
+
+    fn handle_window_focus_lost(&mut self, force_frame: &mut bool) -> Result<()> {
+        let hovered = self.hover_path.clone();
+
+        for node_id in hovered {
+            self.set_state(node_id, InteractionState::ACTIVE, false)?;
+        }
+
+        *force_frame = true;
+        Ok(())
+    }
+
     pub fn dispatch_event(&mut self, event: EngineEvent) {
         let mut force_frame = false;
 
@@ -57,129 +244,36 @@ impl<R: Renderer> Engine<R> {
 
         let mut result = || -> Result<()> {
             match event {
-                EngineEvent::WindowCreated => {
-                    force_frame = true;
-                }
+                EngineEvent::WindowCreated => self.handle_window_created(&mut force_frame),
+
                 EngineEvent::WindowResized { size: new_size } => {
-                    let old_size = self.size;
-
-                    if !(old_size == new_size) {
-                        self.resize(new_size)?;
-                        self.frame()?;
-                    }
+                    self.handle_window_resized(new_size, &mut force_frame)
                 }
-                EngineEvent::MouseMove { position } => {
-                    let new_hover_path = hit_test(&self.arena, self.root, position);
-                    let old_hover_leaf = self.hover_path.last().copied();
-                    let new_hover_leaf = new_hover_path.last().copied();
 
-                    if new_hover_path != self.hover_path {
-                        let old_hover_path = self.hover_path.clone();
+                EngineEvent::MouseMove { position } => self.handle_mouse_move(position),
 
-                        let leaving: Vec<NodeId> = old_hover_path
-                            .iter()
-                            .copied()
-                            .filter(|id| !new_hover_path.contains(id))
-                            .collect();
-
-                        let entering: Vec<NodeId> = new_hover_path
-                            .iter()
-                            .copied()
-                            .filter(|id| !old_hover_path.contains(id))
-                            .collect();
-
-                        for node_id in leaving {
-                            self.set_state(node_id, InteractionState::HOVER, false)?;
-                            self.set_state(node_id, InteractionState::ACTIVE, false)?;
-                        }
-
-                        for node_id in entering {
-                            self.set_state(node_id, InteractionState::HOVER, true)?;
-                        }
-
-                        if old_hover_leaf != new_hover_leaf {
-                            #[cfg(debug_assertions)]
-                            trace_hover_change(
-                                old_hover_leaf,
-                                new_hover_leaf,
-                                old_hover_path.len(),
-                                new_hover_path.len(),
-                            );
-
-                            if let Some(old) = old_hover_leaf
-                                && let Ok(data) = self.arena.get_data(old)
-                            {
-                                if let Some(cb) = &data.event_handlers.on_mouse_leave {
-                                    cb();
-                                }
-
-                                // if let Some(hover_style) = &data.
-                            }
-
-                            if let Some(new) = new_hover_leaf
-                                && let Ok(data) = self.arena.get_data(new)
-                                && let Some(cb) = &data.event_handlers.on_mouse_enter
-                            {
-                                cb();
-                            }
-                        }
-
-                        self.hover_path = new_hover_path;
-                    }
-                }
                 EngineEvent::MouseDown {
                     position,
                     button: MouseButton::Left,
-                } => {
-                    let hit_path = hit_test(&self.arena, self.root, position);
+                } => self.handle_mouse_down(position),
 
-                    for &node_id in hit_path.iter().rev() {
-                        self.set_state(node_id, InteractionState::ACTIVE, true)?;
-
-                        if let Ok(data) = self.arena.get_data(node_id) {
-                            if let Some(cb) = &data.event_handlers.on_click {
-                                cb();
-                            }
-                        }
-                    }
-                }
                 EngineEvent::MouseUp {
                     position,
                     button: MouseButton::Left,
-                } => {
-                    let hit_path = hit_test(&self.arena, self.root, position);
+                } => self.handle_mouse_up(position),
 
-                    for &node_id in hit_path.iter().rev() {
-                        self.set_state(node_id, InteractionState::ACTIVE, false)?;
-                    }
-                }
-                EngineEvent::WindowDestroyed => unsafe {
-                    PostThreadMessageW(
-                        GetCurrentThreadId(),
-                        custom_messages::WINDOWCLOSED,
-                        WPARAM(0),
-                        LPARAM(0),
-                    )?;
-                },
+                EngineEvent::WindowDestroyed => self.handle_window_destroyed(),
+
                 EngineEvent::DpiChanged(hwnd, rect, dpi) => {
-                    self.renderer.set_dpi(dpi)?;
-
-                    unsafe {
-                        SetWindowPos(
-                            hwnd,
-                            None,
-                            rect.location.x,
-                            rect.location.y,
-                            rect.size.width,
-                            rect.size.height,
-                            SWP_NOZORDER | SWP_NOACTIVATE,
-                        )?
-                    };
-
-                    force_frame = true;
+                    self.handle_dpi_changed(hwnd, rect, dpi, &mut force_frame)
                 }
-                _ => {}
-            }
+
+                EngineEvent::WindowFocusGained => self.handle_focus_gained(),
+
+                EngineEvent::WindowFocusLost => self.handle_window_focus_lost(&mut force_frame),
+
+                _ => Ok(()),
+            }?;
 
             if Runtime::has_updates()
                 || force_frame
@@ -206,11 +300,7 @@ impl<R: Renderer> Engine<R> {
         let data = self.arena.get_data_mut(node_id)?;
         let before = data.interaction_state;
 
-        if on {
-            data.interaction_state.insert(state);
-        } else {
-            data.interaction_state.remove(state);
-        }
+        data.interaction_state.set_flag(state, on);
 
         if data.interaction_state != before {
             self.arena.mark_dirty(node_id, DirtyFlags::PAINT)?;
@@ -249,16 +339,16 @@ impl<R: Renderer> Engine<R> {
                             bounds: unrounded_bounds,
                             color: props.background_color,
                             corner_radius: props.corner_radius,
-                            opacity: node.props.opacity,
-                            transform: node.props.transform.unwrap_or(Transform::IDENTITY),
-                            z_index: node.props.z_index,
+                            opacity: node.style.opacity,
+                            transform: node.style.transform.unwrap_or(Transform::IDENTITY),
+                            z_index: node.style.z_index,
                         },
                         NodeKind::Text(props) => RenderCommand::Text {
                             bounds: unrounded_bounds,
                             props: Arc::clone(props), // TODO: is there a better way
-                            opacity: node.props.opacity,
-                            transform: node.props.transform.unwrap_or(Transform::IDENTITY),
-                            z_index: node.props.z_index,
+                            opacity: node.style.opacity,
+                            transform: node.style.transform.unwrap_or(Transform::IDENTITY),
+                            z_index: node.style.z_index,
                         },
                     });
                     redrawn_nodes.push(node_id);
@@ -360,7 +450,10 @@ mod tests {
             render::{Dpi, RenderCommand, Renderer},
             style::Color,
         },
-        elements::div::{ChildrenExt, div, style::DivStyleBuilder},
+        elements::{
+            div::{ChildrenExt, div, style::DivStyleBuilder},
+            text::style::TextStyle,
+        },
     };
 
     struct TestRenderer {
@@ -392,7 +485,7 @@ mod tests {
 
         fn measure_text(
             &mut self,
-            _text_props: &crate::elements::text::TextStyle,
+            _text_props: &TextStyle,
             _available_size: Size<AvailableSpace>,
         ) -> Result<Size<f32>> {
             Ok(Size::wh(0.0, 0.0))
@@ -447,8 +540,8 @@ mod tests {
         let root = div()
             .size(percent(1.0))
             .bg(Color::GREEN)
-            .on_mouse_enter(move || enter_count_cb.set(enter_count_cb.get() + 1))
-            .on_mouse_leave(move || leave_count_cb.set(leave_count_cb.get() + 1));
+            .on_mouse_enter(move |_| enter_count_cb.set(enter_count_cb.get() + 1))
+            .on_mouse_leave(move |_| leave_count_cb.set(leave_count_cb.get() + 1));
 
         let mut engine = Engine::new(
             TestRenderer::new(Size::wh(400, 300)),
@@ -475,6 +568,7 @@ mod tests {
 
     #[test]
     #[ignore = "manual baseline perf probe"]
+    /// Got: 3.1043ms - 3.9207ms - 3.3785ms - 3.7557ms ~ 3.5ms
     fn baseline_mousemove_perf_probe() {
         let root = div()
             .size(percent(1.0))
