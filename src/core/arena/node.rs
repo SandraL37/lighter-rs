@@ -2,14 +2,10 @@ use std::{rc::Rc, sync::Arc};
 
 use crate::{
     core::{
-        reactive::{
-            bind::{DeferredBinding, bind_field},
-            dirty::DirtyFlags,
-            signal::MaybeSignal,
-        },
+        reactive::{bind::HasDeferredBindings, dirty::DirtyFlags, signal::MaybeSignal},
         style::Transform,
     },
-    elements::{div::DivProps, text::TextProps},
+    elements::{div::style::DivStyle, text::TextStyle},
 };
 
 slotmap::new_key_type! {
@@ -19,20 +15,20 @@ slotmap::new_key_type! {
 #[derive(Debug)]
 pub struct NodeData {
     pub kind: NodeKind,
-    pub props: NodeProps,
+    pub props: NodeStyle,
     pub dirty: DirtyFlags,
+    pub interaction_state: InteractionState,
     pub event_handlers: EventHandlers,
-    pub interaction: InteractionState,
 }
 
 #[derive(Debug, Clone)]
 pub enum NodeKind {
-    Div(Arc<DivProps>),
-    Text(Arc<TextProps>),
+    Div(Arc<DivStyle>),
+    Text(Arc<TextStyle>),
 }
 
 impl NodeKind {
-    pub fn as_div_mut(&mut self) -> &mut DivProps {
+    pub fn as_div_mut(&mut self) -> &mut DivStyle {
         if let NodeKind::Div(props) = self {
             Arc::make_mut(props)
         } else {
@@ -40,7 +36,7 @@ impl NodeKind {
         }
     }
 
-    pub fn as_text_mut(&mut self) -> &mut TextProps {
+    pub fn as_text_mut(&mut self) -> &mut TextStyle {
         if let NodeKind::Text(props) = self {
             Arc::make_mut(props)
         } else {
@@ -50,16 +46,16 @@ impl NodeKind {
 }
 
 //  TODO: bench this
-#[derive(Debug)]
-pub struct NodeProps {
+#[derive(Debug, Clone)]
+pub struct NodeStyle {
     pub opacity: f32,
     pub z_index: i32,
     pub transform: Option<Transform>,
 }
 
-impl Default for NodeProps {
+impl Default for NodeStyle {
     fn default() -> Self {
-        NodeProps {
+        NodeStyle {
             opacity: 1.0,
             z_index: 0,
             transform: None, // TODO: benchmark if Box<Transform> is faster
@@ -67,42 +63,42 @@ impl Default for NodeProps {
     }
 }
 
-pub trait NodePropsExt: Sized {
-    fn node_ctx(&mut self) -> (&mut NodeProps, &mut Vec<DeferredBinding>);
+pub trait NodeStyleBuilder: HasDeferredBindings + Sized {
+    fn node_style(style: &mut Self::Style) -> &mut NodeStyle;
 
     fn opacity(mut self, value: impl Into<MaybeSignal<f32>>) -> Self {
-        let (props, bindings) = self.node_ctx();
-        bind_field(
-            &mut props.opacity,
-            bindings,
+        self.bind(
+            |style| &mut Self::node_style(style).opacity,
             value,
             DirtyFlags::PAINT,
-            |data, _, val| data.props.opacity = val,
+            |data, _, val| {
+                data.props.opacity = val;
+            },
         );
         self
     }
 
     fn z(mut self, value: impl Into<MaybeSignal<i32>>) -> Self {
-        let (props, bindings) = self.node_ctx();
-        bind_field(
-            &mut props.z_index,
-            bindings,
+        self.bind(
+            |style| &mut Self::node_style(style).z_index,
             value,
             DirtyFlags::PAINT,
-            |data, _, val| data.props.z_index = val,
+            |data, _, val| {
+                data.props.z_index = val;
+            },
         );
         self
     }
 
     fn transform(mut self, value: impl Into<MaybeSignal<Transform>>) -> Self {
-        let (props, bindings) = self.node_ctx();
         let value = value.into().map(Some);
-        bind_field(
-            &mut props.transform,
-            bindings,
+        self.bind(
+            |style| &mut Self::node_style(style).transform,
             value,
             DirtyFlags::PAINT,
-            |data, _, val| data.props.transform = val,
+            |data, _, val| {
+                data.props.transform = val;
+            },
         );
         self
     }

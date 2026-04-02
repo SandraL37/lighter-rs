@@ -2,6 +2,8 @@ pub mod hit_test;
 
 use std::rc::Rc;
 
+use windows::Win32::Foundation::HWND;
+
 use crate::core::{
     arena::node::EventHandlers,
     layout::types::{point::Point, rect::Rect, size::Size},
@@ -11,7 +13,6 @@ use crate::core::{
 #[derive(Debug, Clone, Copy)]
 pub enum EngineEvent {
     WindowCreated,
-    Tick,
     WindowResized {
         size: Size<usize>,
     },
@@ -27,7 +28,7 @@ pub enum EngineEvent {
         button: MouseButton,
     },
     WindowDestroyed,
-    DpiChanged(Rect<i32>, Dpi),
+    DpiChanged(HWND, Rect<i32>, Dpi),
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

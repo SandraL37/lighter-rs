@@ -1,8 +1,8 @@
-use std::{collections::HashMap, sync::Arc};
+use std::{ collections::HashMap, sync::Arc };
 
 use windows::core::HSTRING;
 
-use crate::{core::render::d2d::*, elements::text::FontWeight};
+use crate::{ core::render::d2d::*, elements::text::FontWeight };
 
 // TODO: everything is hashmap, needs to be fixed
 // TODO: invalidate when DeviceContext is invalid
@@ -25,7 +25,7 @@ impl D2DCache {
         }
     }
 
-    pub fn get_text_format(&mut self, props: &TextProps) -> Result<DWriteTextFormat> {
+    pub fn get_text_format(&mut self, props: &TextStyle) -> Result<DWriteTextFormat> {
         let key = TextFormatKey::from(props);
 
         if let Some(cached) = self.text_format.get(&key) {
@@ -36,12 +36,14 @@ impl D2DCache {
             self.dwrite_factory.CreateTextFormat(
                 &HSTRING::from(props.font_family.to_string()),
                 None,
-                &[DWRITE_FONT_AXIS_VALUE {
-                    axisTag: DWRITE_FONT_AXIS_TAG_WEIGHT,
-                    value: props.font_weight.0 as f32,
-                }],
+                &[
+                    DWRITE_FONT_AXIS_VALUE {
+                        axisTag: DWRITE_FONT_AXIS_TAG_WEIGHT,
+                        value: props.font_weight.0 as f32,
+                    },
+                ],
                 props.font_size,
-                &HSTRING::from(""),
+                &HSTRING::from("")
             )?
         };
 
@@ -51,8 +53,8 @@ impl D2DCache {
 
     pub fn get_text_layout(
         &mut self,
-        props: &TextProps,
-        max_size: Size<f32>,
+        props: &TextStyle,
+        max_size: Size<f32>
     ) -> Result<DWriteTextLayout> {
         let fmt_key = TextFormatKey::from(props);
         let key = TextLayoutKey::from(props, max_size, fmt_key);
@@ -83,8 +85,7 @@ impl D2DCache {
         }
 
         let brush = unsafe {
-            self.d2d_device_context
-                .CreateSolidColorBrush(&(*color).into(), None)?
+            self.d2d_device_context.CreateSolidColorBrush(&(*color).into(), None)?
         };
 
         self.solid_color_brush.insert(key, brush.clone());
@@ -99,8 +100,8 @@ struct TextFormatKey {
     font_weight: FontWeight,
 }
 
-impl From<&TextProps> for TextFormatKey {
-    fn from(props: &TextProps) -> Self {
+impl From<&TextStyle> for TextFormatKey {
+    fn from(props: &TextStyle) -> Self {
         Self {
             font_family: Arc::clone(&props.font_family),
             font_size_bits: props.font_size.to_bits(),
@@ -118,7 +119,7 @@ struct TextLayoutKey {
 }
 
 impl TextLayoutKey {
-    pub fn from(props: &TextProps, bounds: Size<f32>, format: TextFormatKey) -> Self {
+    pub fn from(props: &TextStyle, bounds: Size<f32>, format: TextFormatKey) -> Self {
         Self {
             content: Arc::clone(&props.content),
             max_width_bits: bounds.width.to_bits(),

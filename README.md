@@ -33,3 +33,15 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     Ok(())
 }
 ```
+
+# How it works
+
+## Runtime Ownership Contract
+
+- NodeData owns interaction and visual state:
+  - interaction_state
+  - shared node style
+  - element-specific style payload (DivStyle or TextStyle)
+- NodeLayout owns layout style plus computed layout/cache.
+- Deferred bindings are build-time only and must not be stored in runtime node state.
+- Event handling may mutate interaction state, which then drives dirty flags and rendering.

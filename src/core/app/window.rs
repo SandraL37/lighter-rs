@@ -2,20 +2,23 @@ use crate::{
     core::{
         app::engine::Engine,
         error::*,
-        event::{ EngineEvent, MouseButton },
-        layout::types::{ point::Point, rect::Rect, size::Size },
-        render::{ Dpi, d2d::{ D2DRenderer, D2DRendererFactory } },
+        event::{EngineEvent, MouseButton},
+        layout::types::{point::Point, rect::Rect, size::Size},
+        render::{
+            Dpi,
+            d2d::{D2DRenderer, D2DRendererFactory},
+        },
     },
-    elements::{ Element, div::div },
+    elements::{Element, div::div},
 };
 
 use windows::{
     Win32::{
         Foundation::*,
-        Graphics::{ Dwm::*, Gdi::* },
-        UI::{ HiDpi::*, WindowsAndMessaging::* },
+        Graphics::{Dwm::*, Gdi::*},
+        UI::{HiDpi::*, WindowsAndMessaging::*},
     },
-    core::{ HSTRING, PCWSTR },
+    core::{HSTRING, PCWSTR},
 };
 use windows_result::BOOL;
 
@@ -23,7 +26,7 @@ pub unsafe extern "system" fn wnd_proc(
     hwnd: HWND,
     msg: u32,
     wparam: WPARAM,
-    lparam: LPARAM
+    lparam: LPARAM,
 ) -> LRESULT {
     let window_ptr = (unsafe { GetWindowLongPtrW(hwnd, GWLP_USERDATA) }) as *mut WindowState;
 
@@ -49,38 +52,42 @@ pub unsafe extern "system" fn wnd_proc(
         WM_SIZE => {
             // WM_SIZE lparam gives physical pixels for per-monitor DPI aware windows.
             // Convert to logical DIPs since the engine and layout work in DIP units.
-            let dpi_scale = ((unsafe { GetDpiForWindow(hwnd) }) as f32) / 96.0;
+            let dpi_scale = unsafe { GetDpiForWindow(hwnd) } as f32 / 96.0;
             let dpi_scale = if dpi_scale == 0.0 { 1.0 } else { dpi_scale };
 
             let size = Size::wh(
-                ((((lparam.0 as u32) & 0xffff) as f32) / dpi_scale) as usize,
-                (((((lparam.0 as u32) >> 16) & 0xffff) as f32) / dpi_scale) as usize
+                (((lparam.0 as u32) & 0xffff) as f32 / dpi_scale) as usize,
+                ((((lparam.0 as u32) >> 16) & 0xffff) as f32 / dpi_scale) as usize,
             );
 
-            window.engine.dispatch_event(EngineEvent::WindowResized { size });
+            window
+                .engine
+                .dispatch_event(EngineEvent::WindowResized { size });
 
             LRESULT(0)
         }
         WM_MOUSEMOVE => {
-            let dpi_scale = ((unsafe { GetDpiForWindow(hwnd) }) as f32) / 96.0;
+            let dpi_scale = unsafe { GetDpiForWindow(hwnd) } as f32 / 96.0;
             let dpi_scale = if dpi_scale == 0.0 { 1.0 } else { dpi_scale };
 
             let position = Point::xy(
-                ((lparam.0 & 0xffff) as f32) / dpi_scale,
-                (((lparam.0 >> 16) & 0xffff) as f32) / dpi_scale
+                (lparam.0 & 0xffff) as f32 / dpi_scale,
+                ((lparam.0 >> 16) & 0xffff) as f32 / dpi_scale,
             );
 
-            window.engine.dispatch_event(EngineEvent::MouseMove { position });
+            window
+                .engine
+                .dispatch_event(EngineEvent::MouseMove { position });
 
             LRESULT(0)
         }
         WM_LBUTTONDOWN => {
-            let dpi_scale = ((unsafe { GetDpiForWindow(hwnd) }) as f32) / 96.0;
+            let dpi_scale = unsafe { GetDpiForWindow(hwnd) } as f32 / 96.0;
             let dpi_scale = if dpi_scale == 0.0 { 1.0 } else { dpi_scale };
 
             let position = Point::xy(
-                ((lparam.0 & 0xffff) as f32) / dpi_scale,
-                (((lparam.0 >> 16) & 0xffff) as f32) / dpi_scale
+                (lparam.0 & 0xffff) as f32 / dpi_scale,
+                ((lparam.0 >> 16) & 0xffff) as f32 / dpi_scale,
             );
 
             window.engine.dispatch_event(EngineEvent::MouseDown {
@@ -91,12 +98,12 @@ pub unsafe extern "system" fn wnd_proc(
             LRESULT(0)
         }
         WM_LBUTTONUP => {
-            let dpi_scale = ((unsafe { GetDpiForWindow(hwnd) }) as f32) / 96.0;
+            let dpi_scale = unsafe { GetDpiForWindow(hwnd) } as f32 / 96.0;
             let dpi_scale = if dpi_scale == 0.0 { 1.0 } else { dpi_scale };
 
             let position = Point::xy(
-                ((lparam.0 & 0xffff) as f32) / dpi_scale,
-                (((lparam.0 >> 16) & 0xffff) as f32) / dpi_scale
+                (lparam.0 & 0xffff) as f32 / dpi_scale,
+                ((lparam.0 >> 16) & 0xffff) as f32 / dpi_scale,
             );
 
             window.engine.dispatch_event(EngineEvent::MouseUp {
@@ -107,23 +114,16 @@ pub unsafe extern "system" fn wnd_proc(
             LRESULT(0)
         }
         WM_DPICHANGED => {
-            let dpi = Dpi::new((wparam.0 & 0xffff) as f32, ((wparam.0 >> 16) & 0xffff) as f32);
+            let dpi = Dpi::new(
+                (wparam.0 & 0xffff) as f32,
+                ((wparam.0 >> 16) & 0xffff) as f32,
+            );
 
             let rect = Rect::from(unsafe { *(lparam.0 as *const RECT) });
 
-            window.engine.dispatch_event(EngineEvent::DpiChanged(rect, dpi));
-
-            unsafe {
-                let _ = SetWindowPos(
-                    hwnd,
-                    None,
-                    rect.location.x,
-                    rect.location.y,
-                    rect.size.width,
-                    rect.size.height,
-                    SWP_NOZORDER | SWP_NOACTIVATE
-                );
-            }
+            window
+                .engine
+                .dispatch_event(EngineEvent::DpiChanged(window.hwnd, rect, dpi));
 
             LRESULT(0)
         }
@@ -131,7 +131,7 @@ pub unsafe extern "system" fn wnd_proc(
             window.engine.dispatch_event(EngineEvent::WindowDestroyed);
             LRESULT(0)
         }
-        _ => unsafe { DefWindowProcW(hwnd, msg, wparam, lparam) }
+        _ => unsafe { DefWindowProcW(hwnd, msg, wparam, lparam) },
     }
 }
 
@@ -149,15 +149,15 @@ impl WindowState {
         mode: WindowMode,
         backdrop: WindowBackdrop,
         factory: &D2DRendererFactory,
-        root: Box<dyn Element>
+        root: Box<dyn Element>,
     ) -> Result<Box<WindowState>> {
         // Scale logical size to physical pixels for the current system DPI.
         // CreateWindowExW takes physical pixels when per-monitor DPI aware.
         let system_dpi = unsafe { GetDpiForSystem() };
-        let dpi_scale = (system_dpi as f32) / 96.0;
+        let dpi_scale = system_dpi as f32 / 96.0;
 
-        let physical_width = ((size.width as f32) * dpi_scale) as i32;
-        let physical_height = ((size.height as f32) * dpi_scale) as i32;
+        let physical_width = (size.width as f32 * dpi_scale) as i32;
+        let physical_height = (size.height as f32 * dpi_scale) as i32;
 
         let mut rect = RECT {
             left: 0,
@@ -172,7 +172,7 @@ impl WindowState {
                 WS_OVERLAPPEDWINDOW,
                 false,
                 WS_EX_NOREDIRECTIONBITMAP,
-                system_dpi
+                system_dpi,
             )?;
         }
 
@@ -201,7 +201,7 @@ impl WindowState {
                 None,
                 None,
                 Some(hinstance),
-                None
+                None,
             )?
         };
 
@@ -224,10 +224,6 @@ impl WindowState {
 
     pub fn hwnd(&self) -> HWND {
         self.hwnd
-    }
-
-    pub fn engine_mut(&mut self) -> &mut Engine<D2DRenderer> {
-        &mut self.engine
     }
 }
 
@@ -288,7 +284,7 @@ impl Window {
     pub fn build(
         self,
         hinstance: HINSTANCE,
-        factory: &D2DRendererFactory
+        factory: &D2DRendererFactory,
     ) -> Result<Box<WindowState>> {
         WindowState::build(
             hinstance,
@@ -298,7 +294,7 @@ impl Window {
             self.mode,
             self.backdrop,
             factory,
-            self.root
+            self.root,
         )
     }
 }
@@ -328,7 +324,7 @@ pub fn setup_window(hwnd: HWND, mode: WindowMode, backdrop: WindowBackdrop) -> R
             hwnd,
             DWMWA_USE_IMMERSIVE_DARK_MODE,
             &mode_type as *const _ as *const _,
-            std::mem::size_of::<BOOL>() as u32
+            std::mem::size_of::<BOOL>() as u32,
         )?;
     }
 
@@ -345,7 +341,7 @@ pub fn setup_window(hwnd: HWND, mode: WindowMode, backdrop: WindowBackdrop) -> R
             hwnd,
             DWMWA_SYSTEMBACKDROP_TYPE,
             &backdrop_type as *const _ as *const _,
-            std::mem::size_of::<DWMWINDOWATTRIBUTE>() as u32
+            std::mem::size_of::<DWMWINDOWATTRIBUTE>() as u32,
         )?;
     }
 

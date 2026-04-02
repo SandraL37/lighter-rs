@@ -18,29 +18,43 @@ impl std::fmt::Debug for DeferredBinding {
     }
 }
 
-pub fn bind_field<T: Clone + 'static>(
-    current: &mut T,
-    bindings: &mut Vec<DeferredBinding>,
-    value: impl Into<MaybeSignal<T>>,
-    flags: DirtyFlags,
-    apply: impl Fn(&mut NodeData, &mut NodeLayout, T) + 'static,
-) {
-    match value.into() {
-        MaybeSignal::Static(v) => *current = v,
-        MaybeSignal::Signal(sig) => {
-            *current = sig.get();
-            let apply = Rc::new(apply);
-            bindings.push(DeferredBinding(Box::new(move |node_id| {
-                sig.subscribe(move || {
-                    let val = sig.get();
-                    let apply = apply.clone();
-                    Runtime::push_update(PendingUpdate {
-                        node_id,
-                        flags,
-                        apply: Box::new(move |data, layout| apply(data, layout, val)),
-                    });
-                });
-            })));
+pub trait HasDeferredBindings {
+    type Style;
+
+    fn bindings(&mut self) -> &mut Vec<DeferredBinding>;
+    fn style(&mut self) -> &mut Self::Style;
+
+    fn bind<T: Clone + 'static>(
+        &mut self,
+        current: impl Fn(&mut Self::Style) -> &mut T,
+        value: impl Into<MaybeSignal<T>>,
+        flags: DirtyFlags,
+        apply: impl Fn(&mut NodeData, &mut NodeLayout, T) + 'static,
+    ) {
+        match value.into() {
+            MaybeSignal::Static(v) => {
+                *current(self.style()) = v;
+            }
+            MaybeSignal::Signal(sig) => {
+                {
+                    let current_field = current(self.style());
+                    *current_field = sig.get();
+                }
+
+                let apply = Rc::new(apply);
+                self.bindings()
+                    .push(DeferredBinding(Box::new(move |node_id| {
+                        sig.subscribe(move || {
+                            let val = sig.get();
+                            let apply = apply.clone();
+                            Runtime::push_update(PendingUpdate {
+                                node_id,
+                                flags,
+                                apply: Box::new(move |data, layout| apply(data, layout, val)),
+                            });
+                        });
+                    })));
+            }
         }
     }
 }

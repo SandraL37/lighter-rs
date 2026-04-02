@@ -66,33 +66,15 @@ impl App {
 
     pub fn run(&mut self) -> Result<()> {
         let mut msg = MSG::default();
-        loop {
-            while unsafe { PeekMessageW(&mut msg, None, 0, 0, PM_REMOVE) }.as_bool() {
-                if msg.message == WM_QUIT {
-                    return Ok(());
-                }
-
-                if msg.message == custom_messages::WINDOWCLOSED {
-                    self.check_windows();
-                }
-
-                let _ = unsafe { TranslateMessage(&msg) }; // TODO: handle error
-                unsafe { DispatchMessageW(&msg) };
+        while unsafe { GetMessageW(&mut msg, None, 0, 0).0 } > 0 {
+            if msg.message == custom_messages::WINDOWCLOSED {
+                self.check_windows();
             }
 
-            let mut has_animation = false;
-            for window in &mut self.windows {
-                let engine = window.engine_mut();
-                if engine.has_active_animations() {
-                    has_animation = true;
-                    engine.dispatch_event(crate::core::event::EngineEvent::Tick);
-                }
-            }
-
-            if !has_animation {
-                unsafe { WaitMessage() };
-            }
+            let _ = unsafe { TranslateMessage(&msg) }; // TODO: handle error
+            unsafe { DispatchMessageW(&msg) };
         }
+        Ok(())
     }
 }
 
