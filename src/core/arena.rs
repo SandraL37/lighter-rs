@@ -3,9 +3,10 @@ pub mod tree;
 
 use crate::core::{
     arena::node::{
-        EventHandlers, InteractionState, NodeData, NodeId, NodeKind, NodeRuntimeMeta, NodeStyle,
+        EventHandlers, NodeData, NodeId, NodeKind, NodeRuntimeMeta, NodeStateStyles, NodeStyle,
     },
     error::*,
+    interaction::InteractionState,
     layout::{LayoutStyle, NodeLayout},
     reactive::dirty::{DirtyCounter, DirtyFlags},
 };
@@ -91,6 +92,7 @@ impl NodeArena {
             style: props,
             dirty: DirtyFlags::all(),
             interaction_state: InteractionState::empty(),
+            state_styles: NodeStateStyles::default(),
             runtime_meta: NodeRuntimeMeta::default(),
             event_handlers,
         });

@@ -1,5 +1,3 @@
-use std::sync::Arc;
-
 use crate::{
     core::{
         error::*,
@@ -27,7 +25,7 @@ pub enum RenderCommand {
 
     Text {
         bounds: Rect<f32>,
-        props: Arc<TextStyle>,
+        props: TextStyle,
         opacity: f32,
         transform: Transform,
         z_index: i32,

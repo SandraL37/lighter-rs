@@ -1,7 +1,5 @@
 pub mod trace;
 
-use std::sync::Arc;
-
 use windows::Win32::{Foundation::*, System::Threading::*, UI::WindowsAndMessaging::*};
 
 #[cfg(debug_assertions)]
@@ -12,11 +10,12 @@ use crate::{
         app::custom_messages,
         arena::{
             NodeArena,
-            node::{InteractionState, NodeId, NodeKind},
+            node::{NodeId, NodeKind},
             tree::TreeContext,
         },
         error::*,
         event::{EngineEvent, EventContext, EventPhase, MouseButton, hit_test::hit_test},
+        interaction::InteractionState,
         layout::{
             AvailableSpace, LayoutContext,
             types::{point::Point, rect::Rect, size::Size},
@@ -333,23 +332,37 @@ impl<R: Renderer> Engine<R> {
                     layout.unrounded.size.height,
                 );
 
+                let node_style = node
+                    .style
+                    .resolve_with_state(node.interaction_state, &node.state_styles.node);
+
                 if layout_dirty || paint_dirty {
                     commands.push(match &node.kind {
-                        NodeKind::Div(props) => RenderCommand::Rect {
-                            bounds: unrounded_bounds,
-                            color: props.background_color,
-                            corner_radius: props.corner_radius,
-                            opacity: node.style.opacity,
-                            transform: node.style.transform.unwrap_or(Transform::IDENTITY),
-                            z_index: node.style.z_index,
-                        },
-                        NodeKind::Text(props) => RenderCommand::Text {
-                            bounds: unrounded_bounds,
-                            props: Arc::clone(props), // TODO: is there a better way
-                            opacity: node.style.opacity,
-                            transform: node.style.transform.unwrap_or(Transform::IDENTITY),
-                            z_index: node.style.z_index,
-                        },
+                        NodeKind::Div(props) => {
+                            let props = props
+                                .resolve_with_state(node.interaction_state, &node.state_styles.div);
+                            RenderCommand::Rect {
+                                bounds: unrounded_bounds,
+                                color: props.background_color,
+                                corner_radius: props.corner_radius,
+                                opacity: node_style.opacity,
+                                transform: node_style.transform.unwrap_or(Transform::IDENTITY),
+                                z_index: node_style.z_index,
+                            }
+                        }
+                        NodeKind::Text(props) => {
+                            let props = props.resolve_with_state(
+                                node.interaction_state,
+                                &node.state_styles.text,
+                            );
+                            RenderCommand::Text {
+                                bounds: unrounded_bounds,
+                                props: props,
+                                opacity: node_style.opacity,
+                                transform: node_style.transform.unwrap_or(Transform::IDENTITY),
+                                z_index: node_style.z_index,
+                            }
+                        }
                     });
                     redrawn_nodes.push(node_id);
                 }

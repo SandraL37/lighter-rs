@@ -20,21 +20,21 @@
 
 ### Phase 2 - Event Pipeline Simplification
 
-- [ ] P2.1 refactor `Engine::dispatch_event` into small methods: pointer move, pointer down, pointer up, focus in, focus out, resize, dpi changed.
-- [ ] P2.2 centralize hover path diffing into one helper that returns entering/leaving/common paths.
-- [ ] P2.3 define deterministic propagation semantics for pointer events (target-first/bubble order, stop propagation support plan).
-- [ ] P2.4 introduce `EventContext` for callbacks (node id, pointer position, key modifiers, phase, stop flag).
-- [ ] P2.5 upgrade event handler signatures from `Fn()` to context-aware callbacks while preserving ergonomic builder API.
-- [ ] P2.6 add focus events at platform boundary (`WM_SETFOCUS`, `WM_KILLFOCUS`) and translate them to `EngineEvent`.
+- [x] P2.1 refactor `Engine::dispatch_event` into small methods: pointer move, pointer down, pointer up, focus in, focus out, resize, dpi changed.
+- [x] P2.2 centralize hover path diffing into one helper that returns entering/leaving/common paths.
+- [x] P2.3 define deterministic propagation semantics for pointer events (target-first/bubble order, stop propagation support plan).
+- [x] P2.4 introduce `EventContext` for callbacks (node id, pointer position, key modifiers, phase, stop flag).
+- [x] P2.5 upgrade event handler signatures from `Fn()` to context-aware callbacks while preserving ergonomic builder API.
+- [x] P2.6 add focus events at platform boundary (`WM_SETFOCUS`, `WM_KILLFOCUS`) and translate them to `EngineEvent`.
 
 ### Phase 3 - Generic Stateful Style Resolution
 
-- [ ] P3.1 add a generic state patch model (`base + hover + active + focus + disabled`) for all relevant style domains.
-- [ ] P3.2 define property classification table for dirty invalidation (`PAINT` vs `LAYOUT`) per style field.
-- [ ] P3.3 implement resolver with strict precedence: `disabled > active > hover > focus > base`.
-- [ ] P3.4 implement change diffing between previous effective style and next effective style.
-- [ ] P3.5 apply only changed fields to runtime node data and mark precise dirty flags.
-- [ ] P3.6 route all interaction-state mutations through one `apply_interaction_state` entrypoint.
+- [x] P3.1 add a generic state patch model (`base + hover + active + focus + disabled`) for all relevant style domains.
+- [x] P3.2 define property classification table for dirty invalidation (`PAINT` vs `LAYOUT`) per style field.
+- [x] P3.3 implement resolver with strict precedence: `disabled > active > hover > focus > base`.
+- [x] P3.4 implement change diffing between previous effective style and next effective style.
+- [x] P3.5 apply only changed fields to runtime node data and mark precise dirty flags.
+- [x] P3.6 route all interaction-state mutations through one `apply_interaction_state` entrypoint.
 
 ### Phase 4 - Builder API Unification (Tailwind-like DX)
 
@@ -124,8 +124,8 @@
 - [ ] apply render properties consistently in D2D backend (`src/core/render/d2d.rs`): `RenderCommand` carries `opacity` and `transform` but draw calls ignore them; implement per-command transform/opacity push-pop to match API behavior.
 - [ ] MANAGE RAM CONSUMPTION - cache: cap/evict `D2DCache` entries (text layout/format/brush) and invalidate on device/context recreation to prevent unbounded growth and stale resources.
 - [ ] benchmark: add repeatable frame-time + layout + text-measure benchmarks (scene sizes, update rates, warm/cold cache) to guide optimization work.
-- [ ] fix impl trait system for elements/components so public API stays ergonomic while allowing reusable, typed component composition.
-- [ ] add stop event propagation in event system (capture/bubble control): allow handlers to stop bubbling for click/hover flows to avoid conflicting parent handlers.
+- [x] fix impl trait system for elements/components so public API stays ergonomic while allowing reusable, typed component composition.
+- [x] add stop event propagation in event system (capture/bubble control): allow handlers to stop bubbling for click/hover flows to avoid conflicting parent handlers.
 - [ ] active / focus / hover styles: wire pseudo-state style resolution to events and invalidation so state changes update paint/layout predictably.
 - [ ] bubble hover behavior: define and implement consistent hover enter/leave bubbling semantics across nested elements.
 - [ ] add dcomp integration path (DirectComposition) for better composition/presentation control and future visual effects pipeline.
@@ -135,10 +135,10 @@
 
 - [x] deduplicate layout style builder code (`src/core/layout.rs`): `ContainerStylePropsImpl` and `LeafStylePropsExt` duplicate many setters (`w/h/size/max_* /m`), increasing maintenance cost and inconsistency risk; extract shared helper/macro.
 - [ ] reduce clone pressure during layout (`src/core/layout/engine.rs`): `node_kind.clone()` and `style.clone()` are done in `compute_child_layout`; borrow where possible or split read paths to avoid repeated cloning.
-- [ ] harden type-safe node downcasts (`src/core/arena/node.rs`): replace `unreachable!("Not a div/text")` in `as_div_mut`/`as_text_mut` with safe error-returning APIs to avoid undefined behavior patterns during future element expansion.
+- [x] harden type-safe node downcasts (`src/core/arena/node.rs`): replace `unreachable!("Not a div/text")` in `as_div_mut`/`as_text_mut` with safe error-returning APIs to avoid undefined behavior patterns during future element expansion.
 - [ ] debug devtools: expand diagnostics for layout tree, dirty flags, event paths, and cache stats to reduce time spent debugging framework internals.
 - [ ] add default styling/theme baseline (tokens + defaults for text/background/spacing) so elements are usable without verbose style setup.
-- [ ] `src/core/app/window.rs` remove (or manage) the silent error in the WM_PAINT branch.
+- [x] `src/core/app/window.rs` remove (or manage) the silent error in the WM_PAINT branch.
 
 ## [NICE TO HAVE]
 

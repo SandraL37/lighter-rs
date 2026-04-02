@@ -1,4 +1,5 @@
 use crate::core::{
+    interaction::{InteractionState, StatePatches, select_patch},
     reactive::{bind::HasDeferredBindings, dirty::DirtyFlags, signal::MaybeSignal},
     style::Color,
 };
@@ -48,4 +49,40 @@ impl Default for DivStyle {
             corner_radius: 0.0,
         }
     }
+}
+
+#[derive(Debug, Clone, Default, PartialEq)]
+pub struct DivStylePatch {
+    pub background_color: Option<Color>,
+    pub corner_radius: Option<f32>,
+}
+
+impl DivStyle {
+    pub fn resolve_with_state(
+        &self,
+        state: InteractionState,
+        patches: &StatePatches<DivStylePatch>,
+    ) -> Self {
+        let mut out = self.clone();
+        if let Some(p) = select_patch(state, patches) {
+            if let Some(v) = p.background_color {
+                out.background_color = v;
+            }
+            if let Some(v) = p.corner_radius {
+                out.corner_radius = v;
+            }
+        }
+        out
+    }
+}
+
+pub fn div_patch_dirty_flags(p: &DivStylePatch) -> DirtyFlags {
+    let mut flags = DirtyFlags::empty();
+    if p.background_color.is_some() {
+        flags |= DirtyFlags::PAINT;
+    }
+    if p.corner_radius.is_some() {
+        flags |= DirtyFlags::PAINT;
+    }
+    flags
 }

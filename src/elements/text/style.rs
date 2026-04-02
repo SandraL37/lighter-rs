@@ -2,6 +2,7 @@ use std::sync::Arc;
 
 use crate::{
     core::{
+        interaction::{InteractionState, StatePatches, select_patch},
         reactive::{bind::HasDeferredBindings, dirty::DirtyFlags, signal::MaybeSignal},
         style::Color,
     },
@@ -123,4 +124,61 @@ impl FontWeight {
         let raw = raw.clamp(1, 1000);
         FontWeight(raw)
     }
+}
+
+#[derive(Debug, Clone, Default, PartialEq)]
+pub struct TextStylePatch {
+    pub content: Option<Arc<str>>,
+    pub color: Option<Color>,
+    pub font_size: Option<f32>,
+    pub font_family: Option<Arc<str>>,
+    pub font_weight: Option<FontWeight>,
+}
+
+impl TextStyle {
+    pub fn resolve_with_state(
+        &self,
+        state: InteractionState,
+        patches: &StatePatches<TextStylePatch>,
+    ) -> Self {
+        let mut out = self.clone();
+        if let Some(p) = select_patch(state, patches) {
+            if let Some(v) = &p.content {
+                out.content = v.clone();
+            }
+            if let Some(v) = p.color {
+                out.color = v;
+            }
+            if let Some(v) = p.font_size {
+                out.font_size = v;
+            }
+            if let Some(v) = &p.font_family {
+                out.font_family = v.clone();
+            }
+            if let Some(v) = p.font_weight {
+                out.font_weight = v;
+            }
+        }
+        out
+    }
+}
+
+pub fn text_patch_dirty_flags(p: &TextStylePatch) -> DirtyFlags {
+    let mut flags = DirtyFlags::empty();
+    if p.color.is_some() {
+        flags |= DirtyFlags::PAINT;
+    }
+    if p.content.is_some() {
+        flags |= DirtyFlags::PAINT | DirtyFlags::LAYOUT;
+    }
+    if p.font_size.is_some() {
+        flags |= DirtyFlags::PAINT | DirtyFlags::LAYOUT;
+    }
+    if p.font_family.is_some() {
+        flags |= DirtyFlags::PAINT | DirtyFlags::LAYOUT;
+    }
+    if p.font_weight.is_some() {
+        flags |= DirtyFlags::PAINT | DirtyFlags::LAYOUT;
+    }
+    flags
 }

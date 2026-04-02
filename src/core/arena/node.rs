@@ -4,10 +4,14 @@ use crate::{
     core::{
         error::*,
         event::EventContext,
+        interaction::{InteractionState, PatchValue, StatePatches, select_patch},
         reactive::{bind::HasDeferredBindings, dirty::DirtyFlags, signal::MaybeSignal},
         style::Transform,
     },
-    elements::{div::style::DivStyle, text::style::TextStyle},
+    elements::{
+        div::style::{DivStyle, DivStylePatch},
+        text::style::{TextStyle, TextStylePatch},
+    },
 };
 
 slotmap::new_key_type! {
@@ -44,6 +48,7 @@ pub struct NodeData {
     pub interaction_state: InteractionState,
     // Runtime metadata used by focus/transition/event routing.
     pub runtime_meta: NodeRuntimeMeta,
+    pub state_styles: NodeStateStyles,
     pub event_handlers: EventHandlers,
 }
 
@@ -170,42 +175,40 @@ impl std::fmt::Debug for EventHandlers {
     }
 }
 
-bitflags::bitflags! {
-    #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-    pub struct InteractionState: u8 {
-        const HOVER = 1 << 0;
-        const ACTIVE = 1 << 1;
-        const FOCUS = 1 << 2;
-        const DISABLED = 1 << 3;
+#[derive(Debug, Clone, Default, PartialEq)]
+pub struct NodeStylePatch {
+    pub opacity: PatchValue<f32>,
+    pub z_index: PatchValue<i32>,
+    pub transform: PatchValue<Option<Transform>>,
+}
+
+impl NodeStyle {
+    pub fn resolve_with_state(
+        &self,
+        state: InteractionState,
+        patches: &StatePatches<NodeStylePatch>,
+    ) -> Self {
+        let mut out = self.clone(); // TODO: find better solutions
+
+        if let Some(p) = select_patch(state, patches) {
+            if let PatchValue::Set(v) = p.opacity {
+                out.opacity = v;
+            }
+            if let PatchValue::Set(v) = p.z_index {
+                out.z_index = v;
+            }
+            if let PatchValue::Set(v) = p.transform {
+                out.transform = v;
+            }
+        }
+
+        out
     }
 }
 
-impl InteractionState {
-    pub fn set_flag(&mut self, flag: InteractionState, on: bool) {
-        if on {
-            self.insert(flag);
-        } else {
-            self.remove(flag);
-        }
-    }
-
-    #[inline(always)]
-    pub fn is_hovered(self) -> bool {
-        self.contains(InteractionState::HOVER)
-    }
-
-    #[inline(always)]
-    pub fn is_active(self) -> bool {
-        self.contains(InteractionState::ACTIVE)
-    }
-
-    #[inline(always)]
-    pub fn is_focused(self) -> bool {
-        self.contains(InteractionState::FOCUS)
-    }
-
-    #[inline(always)]
-    pub fn is_disabled(self) -> bool {
-        self.contains(InteractionState::DISABLED)
-    }
+#[derive(Debug, Clone, Default)]
+pub struct NodeStateStyles {
+    pub node: StatePatches<NodeStylePatch>,
+    pub div: StatePatches<DivStylePatch>,
+    pub text: StatePatches<TextStylePatch>,
 }
