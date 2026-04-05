@@ -17,7 +17,7 @@ use crate::{
     elements::{
         Element,
         div::{
-            props::DivBuildProps,
+            props::{DivBuildProps, DivPatchProps},
             style::{DivStyle, DivStyleBuilder, DivStylePatch},
         },
     },
@@ -37,8 +37,51 @@ impl Div {
         self
     }
 
-    pub fn hover(mut self, f: impl Fn(DivStylePatch) -> DivStylePatch) -> Self {
-        self.props.div_hover = f(self.props.div_hover);
+    /// Apply style overrides when hovered.
+    pub fn hover(mut self, f: impl Fn(DivPatchProps) -> DivPatchProps) -> Self {
+        let overrides = f(DivPatchProps::default());
+        if let Some(color) = overrides.div.background_color {
+            self.props.div.background_color.set_hover(color);
+        }
+        if let Some(radius) = overrides.div.corner_radius {
+            self.props.div.corner_radius.set_hover(radius);
+        }
+        self
+    }
+
+    /// Apply style overrides when active (pressed).
+    pub fn active(mut self, f: impl Fn(DivPatchProps) -> DivPatchProps) -> Self {
+        let overrides = f(DivPatchProps::default());
+        if let Some(color) = overrides.div.background_color {
+            self.props.div.background_color.set_active(color);
+        }
+        if let Some(radius) = overrides.div.corner_radius {
+            self.props.div.corner_radius.set_active(radius);
+        }
+        self
+    }
+
+    /// Apply style overrides when focused.
+    pub fn focus(mut self, f: impl Fn(DivStylePatch) -> DivStylePatch) -> Self {
+        let overrides = f(DivStylePatch::default());
+        if let Some(color) = overrides.background_color {
+            self.props.div.background_color.set_focus(color);
+        }
+        if let Some(radius) = overrides.corner_radius {
+            self.props.div.corner_radius.set_focus(radius);
+        }
+        self
+    }
+
+    /// Apply style overrides when disabled.
+    pub fn disabled_style(mut self, f: impl Fn(DivStylePatch) -> DivStylePatch) -> Self {
+        let overrides = f(DivStylePatch::default());
+        if let Some(color) = overrides.background_color {
+            self.props.div.background_color.set_disabled(color);
+        }
+        if let Some(radius) = overrides.corner_radius {
+            self.props.div.corner_radius.set_disabled(radius);
+        }
         self
     }
 }
@@ -117,15 +160,11 @@ impl Element for Div {
             node,
             layout,
             div,
-            div_hover,
             bindings,
         } = props;
 
         let id = arena.create_node(
-            NodeKind::Div {
-                style: Arc::new(div),
-                div_hover: Arc::new(div_hover),
-            },
+            NodeKind::Div(Arc::new(div)),
             node,
             parent,
             layout,

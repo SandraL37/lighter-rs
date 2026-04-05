@@ -8,11 +8,7 @@ use crate::{
         reactive::{bind::HasDeferredBindings, dirty::DirtyFlags, signal::MaybeSignal},
         style::Transform,
     },
-    elements::{
-        // div::style::{ DivStyle, DivStylePatch },
-        div::style::{DivStyle, DivStylePatch},
-        text::style::TextStyle,
-    },
+    elements::{div::style::DivStyle, text::style::TextStyle},
 };
 
 slotmap::new_key_type! {
@@ -33,10 +29,7 @@ pub struct NodeData {
 
 #[derive(Debug, Clone)]
 pub enum NodeKind {
-    Div {
-        style: Arc<DivStyle>,
-        div_hover: Arc<DivStylePatch>,
-    },
+    Div(Arc<DivStyle>),
     Text(Arc<TextStyle>),
 }
 
@@ -44,14 +37,14 @@ impl NodeKind {
     #[cold]
     fn kind_name(&self) -> &'static str {
         match self {
-            NodeKind::Div { .. } => "Div",
+            NodeKind::Div(_) => "Div",
             NodeKind::Text(_) => "Text",
         }
     }
 
     pub fn as_div_mut(&mut self) -> Result<&mut DivStyle> {
         match self {
-            NodeKind::Div { style, .. } => Ok(Arc::make_mut(style)),
+            NodeKind::Div(props) => Ok(Arc::make_mut(props)),
             _ => Err(Error::NodeKindMismatch {
                 expected: "Div",
                 found: self.kind_name(),

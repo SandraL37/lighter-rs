@@ -2,14 +2,13 @@
 use lighter::{
     core::{
         app::{window::*, *},
-        arena::node::NodeStyleBuilder,
         event::*,
         layout::{
-            types::{alignment::*, dimension::*, flex::*, size::*, *},
+            types::{dimension::*, size::*},
             *,
         },
         reactive::signal::*,
-        style::{Color, Transform},
+        style::Color,
     },
     elements::{
         div::{style::*, *},
@@ -29,7 +28,8 @@ fn root() -> impl Element {
         .rounded(4.0)
         .items_center()
         .justify_center()
-        .hover(|s| s.bg(Color::BLUE));
+        .hover(|s| s.bg(Color::BLUE))
+        .active(|s| s.bg(Color::RED));
     let counter = signal(0.0f32);
 
     page()
@@ -41,19 +41,13 @@ fn root() -> impl Element {
         .child(text("OK funziono").color(Color::WHITE))
         .child(
             square
-                .child(
-                    text(counter)
-                        .mx(derived(move || {
-                            DefiniteDimensionAuto::length(counter.get().powf(2.0) / 4.0)
-                        }))
-                        .font_size(derived(move || counter.get().powf(2.0) + 14.0)),
-                )
-                .on_click(move |e| {
-                    counter.update(|c| *c += 1.0);
-                    e.stop_propagation();
+                .child(text(counter).font_size(30.0))
+                .on_click(move |_| {
+                    counter.update(|c| {
+                        *c += 1.0;
+                    })
                 }),
         )
-        .on_click(move |_| counter.update(|c| *c += 1.0))
 }
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {

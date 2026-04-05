@@ -387,17 +387,7 @@ impl<R: Renderer> Engine<R> {
         data.interaction_state.set_flag(state, on);
 
         if data.interaction_state != before {
-            if data.interaction_state.is_hovered() {
-                match &mut data.kind {
-                    NodeKind::Div { style, div_hover } => {
-                        for f in div_hover.patches.iter() {
-                            f(Arc::make_mut(style))
-                        }
-                    }
-                    _ => {}
-                }
-            }
-
+            // TODO: Add a more granular dirtyflag handling
             self.arena.mark_dirty(node_id, DirtyFlags::PAINT)?;
         }
 
@@ -430,11 +420,10 @@ impl<R: Renderer> Engine<R> {
 
                 if layout_dirty || paint_dirty {
                     commands.push(match &node.kind {
-                        NodeKind::Div { style: props, .. } => RenderCommand::Rect {
-                            // TODO: CHANGE
+                        NodeKind::Div(props) => RenderCommand::Rect {
                             bounds: unrounded_bounds,
-                            color: props.background_color,
-                            corner_radius: props.corner_radius,
+                            color: props.background_color.get(node.interaction_state),
+                            corner_radius: props.corner_radius.get(node.interaction_state),
                             opacity: node.style.opacity,
                             transform: node.style.transform.unwrap_or(Transform::IDENTITY),
                             z_index: node.style.z_index,

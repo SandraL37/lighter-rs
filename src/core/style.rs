@@ -1,5 +1,3 @@
-use crate::core::animations::Lerpable;
-
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct Color {
     pub r: f32,
@@ -37,17 +35,6 @@ impl Color {
 
     pub const fn with_alpha(self, a: f32) -> Self {
         Color { a, ..self }
-    }
-}
-
-impl Lerpable for Color {
-    fn lerp(self, other: Self, t: f32) -> Self {
-        Self {
-            r: self.r + (other.r - self.r) * t,
-            g: self.g + (other.g - self.g) * t,
-            b: self.b + (other.b - self.b) * t,
-            a: self.a + (other.a - self.a) * t,
-        }
     }
 }
 

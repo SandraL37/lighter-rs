@@ -6,6 +6,12 @@ bitflags::bitflags! {
     }
 }
 
+impl Default for DirtyFlags {
+    fn default() -> Self {
+        Self::empty()
+    }
+}
+
 #[derive(Debug, Default)]
 pub struct DirtyCounter {
     counts: [usize; 2],
