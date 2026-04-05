@@ -5,8 +5,8 @@ use std::rc::Rc;
 use windows::Win32::Foundation::HWND;
 
 use crate::core::{
-    arena::node::{EventHandlers, NodeId},
-    layout::types::{point::Point, rect::Rect, size::Size},
+    arena::node::{ EventHandlers, NodeId },
+    layout::types::{ point::Point, rect::Rect, size::Size },
     render::Dpi,
 };
 
@@ -45,7 +45,11 @@ pub enum Event {
     Click,
     MouseEnter,
     MouseLeave,
-    MouseMove { position: Point<f32> },
+    MouseOver,
+    MouseOut,
+    MouseMove {
+        position: Point<f32>,
+    },
 }
 
 pub trait MouseEvents: Sized {
@@ -63,6 +67,16 @@ pub trait MouseEvents: Sized {
 
     fn on_mouse_leave(mut self, handler: impl Fn(&mut EventContext) + 'static) -> Self {
         self.event_handlers().on_mouse_leave = Some(Rc::new(handler));
+        self
+    }
+
+    fn on_mouse_over(mut self, handler: impl Fn(&mut EventContext) + 'static) -> Self {
+        self.event_handlers().on_mouse_over = Some(Rc::new(handler));
+        self
+    }
+
+    fn on_mouse_out(mut self, handler: impl Fn(&mut EventContext) + 'static) -> Self {
+        self.event_handlers().on_mouse_out = Some(Rc::new(handler));
         self
     }
 }
@@ -88,7 +102,7 @@ impl EventContext {
         target: NodeId,
         current: NodeId,
         position: Option<Point<f32>>,
-        phase: EventPhase,
+        phase: EventPhase
     ) -> Self {
         Self {
             target,
@@ -100,7 +114,7 @@ impl EventContext {
     }
 
     pub fn stop_propagation(&mut self) {
-        self.stop = true
+        self.stop = true;
     }
 
     pub fn is_propagation_stopped(&self) -> bool {

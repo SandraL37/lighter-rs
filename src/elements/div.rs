@@ -18,7 +18,7 @@ use crate::{
         Element,
         div::{
             props::DivBuildProps,
-            style::{DivStyle, DivStyleBuilder},
+            style::{DivStyle, DivStyleBuilder, DivStylePatch},
         },
     },
 };
@@ -34,6 +34,11 @@ pub struct Div {
 impl Div {
     pub fn style(mut self, f: impl Fn(DivBuildProps) -> DivBuildProps) -> Self {
         self.props = f(self.props);
+        self
+    }
+
+    pub fn hover(mut self, f: impl Fn(DivStylePatch) -> DivStylePatch) -> Self {
+        self.props.div_hover = f(self.props.div_hover);
         self
     }
 }
@@ -112,11 +117,15 @@ impl Element for Div {
             node,
             layout,
             div,
+            div_hover,
             bindings,
         } = props;
 
         let id = arena.create_node(
-            NodeKind::Div(Arc::new(div)),
+            NodeKind::Div {
+                style: Arc::new(div),
+                div_hover: Arc::new(div_hover),
+            },
             node,
             parent,
             layout,

@@ -1,13 +1,41 @@
 use crate::core::{
-    interaction::{InteractionState, StatePatches, select_patch},
     reactive::{bind::HasDeferredBindings, dirty::DirtyFlags, signal::MaybeSignal},
     style::Color,
 };
 
-#[derive(Debug, Clone)]
+#[derive(Clone)]
 pub struct DivStyle {
     pub background_color: Color,
     pub corner_radius: f32, // TODO: make it DefiniteDimension
+}
+
+#[derive(Default)]
+pub struct DivStylePatch {
+    pub(crate) patches: Vec<Box<dyn Fn(&mut DivStyle)>>,
+}
+
+impl DivStylePatch {
+    pub fn bg(mut self, color: Color) -> Self {
+        self.patches.push(Box::new(move |style| {
+            style.background_color = color;
+        }));
+        self
+    }
+
+    pub fn rounded(mut self, corner_radius: f32) -> Self {
+        self.patches.push(Box::new(move |style| {
+            style.corner_radius = corner_radius;
+        }));
+        self
+    }
+}
+
+impl std::fmt::Debug for DivStylePatch {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("DivStylePatch")
+            .field("patches", &self.patches.len())
+            .finish()
+    }
 }
 
 pub trait DivStyleBuilder: HasDeferredBindings + Sized {
@@ -42,6 +70,15 @@ pub trait DivStyleBuilder: HasDeferredBindings + Sized {
     }
 }
 
+impl std::fmt::Debug for DivStyle {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("DivStyle")
+            .field("background_color", &self.background_color)
+            .field("corner_radius", &self.corner_radius)
+            .finish()
+    }
+}
+
 impl Default for DivStyle {
     fn default() -> Self {
         DivStyle {
@@ -49,40 +86,4 @@ impl Default for DivStyle {
             corner_radius: 0.0,
         }
     }
-}
-
-#[derive(Debug, Clone, Default, PartialEq)]
-pub struct DivStylePatch {
-    pub background_color: Option<Color>,
-    pub corner_radius: Option<f32>,
-}
-
-impl DivStyle {
-    pub fn resolve_with_state(
-        &self,
-        state: InteractionState,
-        patches: &StatePatches<DivStylePatch>,
-    ) -> Self {
-        let mut out = self.clone();
-        if let Some(p) = select_patch(state, patches) {
-            if let Some(v) = p.background_color {
-                out.background_color = v;
-            }
-            if let Some(v) = p.corner_radius {
-                out.corner_radius = v;
-            }
-        }
-        out
-    }
-}
-
-pub fn div_patch_dirty_flags(p: &DivStylePatch) -> DirtyFlags {
-    let mut flags = DirtyFlags::empty();
-    if p.background_color.is_some() {
-        flags |= DirtyFlags::PAINT;
-    }
-    if p.corner_radius.is_some() {
-        flags |= DirtyFlags::PAINT;
-    }
-    flags
 }

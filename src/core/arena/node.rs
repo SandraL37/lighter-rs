@@ -4,13 +4,14 @@ use crate::{
     core::{
         error::*,
         event::EventContext,
-        interaction::{InteractionState, PatchValue, StatePatches, select_patch},
+        interaction::InteractionState,
         reactive::{bind::HasDeferredBindings, dirty::DirtyFlags, signal::MaybeSignal},
         style::Transform,
     },
     elements::{
+        // div::style::{ DivStyle, DivStylePatch },
         div::style::{DivStyle, DivStylePatch},
-        text::style::{TextStyle, TextStylePatch},
+        text::style::TextStyle,
     },
 };
 
@@ -18,43 +19,24 @@ slotmap::new_key_type! {
     pub struct NodeId;
 }
 
-// TODO: Check coherence.
-#[derive(Debug, Clone, Copy)]
-pub struct NodeRuntimeMeta {
-    pub focusable: bool,
-    pub pointer_events: bool,
-    pub transition_profile_id: Option<u16>,
-}
-
-impl Default for NodeRuntimeMeta {
-    fn default() -> Self {
-        Self {
-            focusable: false,
-            pointer_events: true,
-            transition_profile_id: None,
-        }
-    }
-}
-
 #[derive(Debug)]
 pub struct NodeData {
-    // Element-specific visual payload (DivStyle/TextStyle)
     pub kind: NodeKind,
-    // Shared node visual style (opacity/z/transform)
+
     pub style: NodeStyle,
-    // Dirty flags for render/layout invalidation.
+
     pub dirty: DirtyFlags,
-    // Interaction bits (hover/active/focus/disabled)
+
     pub interaction_state: InteractionState,
-    // Runtime metadata used by focus/transition/event routing.
-    pub runtime_meta: NodeRuntimeMeta,
-    pub state_styles: NodeStateStyles,
     pub event_handlers: EventHandlers,
 }
 
 #[derive(Debug, Clone)]
 pub enum NodeKind {
-    Div(Arc<DivStyle>),
+    Div {
+        style: Arc<DivStyle>,
+        div_hover: Arc<DivStylePatch>,
+    },
     Text(Arc<TextStyle>),
 }
 
@@ -62,14 +44,14 @@ impl NodeKind {
     #[cold]
     fn kind_name(&self) -> &'static str {
         match self {
-            NodeKind::Div(_) => "Div",
+            NodeKind::Div { .. } => "Div",
             NodeKind::Text(_) => "Text",
         }
     }
 
     pub fn as_div_mut(&mut self) -> Result<&mut DivStyle> {
         match self {
-            NodeKind::Div(props) => Ok(Arc::make_mut(props)),
+            NodeKind::Div { style, .. } => Ok(Arc::make_mut(style)),
             _ => Err(Error::NodeKindMismatch {
                 expected: "Div",
                 found: self.kind_name(),
@@ -153,6 +135,8 @@ pub struct EventHandlers {
     pub on_click: Option<EventCallback>,
     pub on_mouse_enter: Option<EventCallback>,
     pub on_mouse_leave: Option<EventCallback>,
+    pub on_mouse_over: Option<EventCallback>,
+    pub on_mouse_out: Option<EventCallback>,
 }
 
 impl Default for EventHandlers {
@@ -161,6 +145,8 @@ impl Default for EventHandlers {
             on_click: None,
             on_mouse_enter: None,
             on_mouse_leave: None,
+            on_mouse_over: None,
+            on_mouse_out: None,
         }
     }
 }
@@ -171,44 +157,8 @@ impl std::fmt::Debug for EventHandlers {
             .field("on_click", &self.on_click.is_some())
             .field("on_mouse_enter", &self.on_mouse_enter.is_some())
             .field("on_mouse_leave", &self.on_mouse_leave.is_some())
+            .field("on_mouse_over", &self.on_mouse_over.is_some())
+            .field("on_mouse_out", &self.on_mouse_out.is_some())
             .finish()
     }
-}
-
-#[derive(Debug, Clone, Default, PartialEq)]
-pub struct NodeStylePatch {
-    pub opacity: PatchValue<f32>,
-    pub z_index: PatchValue<i32>,
-    pub transform: PatchValue<Option<Transform>>,
-}
-
-impl NodeStyle {
-    pub fn resolve_with_state(
-        &self,
-        state: InteractionState,
-        patches: &StatePatches<NodeStylePatch>,
-    ) -> Self {
-        let mut out = self.clone(); // TODO: find better solutions
-
-        if let Some(p) = select_patch(state, patches) {
-            if let PatchValue::Set(v) = p.opacity {
-                out.opacity = v;
-            }
-            if let PatchValue::Set(v) = p.z_index {
-                out.z_index = v;
-            }
-            if let PatchValue::Set(v) = p.transform {
-                out.transform = v;
-            }
-        }
-
-        out
-    }
-}
-
-#[derive(Debug, Clone, Default)]
-pub struct NodeStateStyles {
-    pub node: StatePatches<NodeStylePatch>,
-    pub div: StatePatches<DivStylePatch>,
-    pub text: StatePatches<TextStylePatch>,
 }

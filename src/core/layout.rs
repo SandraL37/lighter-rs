@@ -282,8 +282,38 @@ pub trait LeafStyleBuilder: HasDeferredBindings + Sized {
         self
     }
 
+    #[inline(always)]
     fn max_size(self, max_size: impl Into<MaybeSignal<Dimension>> + Copy) -> Self {
         self.max_w(max_size).max_h(max_size)
+    }
+
+    fn min_w(mut self, min_width: impl Into<MaybeSignal<Dimension>>) -> Self {
+        self.bind(
+            |style| &mut Self::layout_style(style).min_size.width,
+            min_width,
+            DirtyFlags::LAYOUT,
+            |_, layout, val| {
+                layout.style.min_size.width = val;
+            },
+        );
+        self
+    }
+
+    fn min_h(mut self, min_height: impl Into<MaybeSignal<Dimension>>) -> Self {
+        self.bind(
+            |style| &mut Self::layout_style(style).min_size.height,
+            min_height,
+            DirtyFlags::LAYOUT,
+            |_, layout, val| {
+                layout.style.min_size.height = val;
+            },
+        );
+        self
+    }
+
+    #[inline(always)]
+    fn min_size(self, min_size: impl Into<MaybeSignal<Dimension>> + Copy) -> Self {
+        self.min_w(min_size).min_h(min_size)
     }
 
     fn mb(mut self, bottom: impl Into<MaybeSignal<DefiniteDimensionAuto>>) -> Self {

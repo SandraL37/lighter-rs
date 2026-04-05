@@ -1,5 +1,7 @@
 pub mod trace;
 
+use std::sync::Arc;
+
 use windows::Win32::{Foundation::*, System::Threading::*, UI::WindowsAndMessaging::*};
 
 #[cfg(debug_assertions)]
@@ -107,30 +109,24 @@ impl<R: Renderer> Engine<R> {
                 trace_hover_change(&hover_delta);
             }
 
-            for node_id in hover_delta.leaving {
+            for &node_id in &hover_delta.leaving {
                 self.set_state(node_id, InteractionState::HOVER, false)?;
                 self.set_state(node_id, InteractionState::ACTIVE, false)?;
             }
 
-            for node_id in hover_delta.entering {
+            for &node_id in &hover_delta.entering {
                 self.set_state(node_id, InteractionState::HOVER, true)?;
             }
 
-            if hover_delta.old_leaf != hover_delta.new_leaf {
-                if let Some(old) = hover_delta.old_leaf
-                    && let Ok(data) = self.arena.get_data(old)
-                    && let Some(cb) = &data.event_handlers.on_mouse_leave
-                {
-                    let mut ctx = EventContext::new(old, old, Some(position), EventPhase::Target);
-                    cb(&mut ctx)
-                }
+            self.fire_mouse_leave(&hover_delta.leaving, position);
+            self.fire_mouse_enter(&hover_delta.entering, position);
 
-                if let Some(new) = hover_delta.new_leaf
-                    && let Ok(data) = self.arena.get_data(new)
-                    && let Some(cb) = &data.event_handlers.on_mouse_enter
-                {
-                    let mut ctx = EventContext::new(new, new, Some(position), EventPhase::Target);
-                    cb(&mut ctx)
+            if hover_delta.old_leaf != hover_delta.new_leaf {
+                if let Some(old) = hover_delta.old_leaf {
+                    self.fire_mouse_out(&self.hover_path, old, position);
+                }
+                if let Some(new) = hover_delta.new_leaf {
+                    self.fire_mouse_over(&new_hover_path, new, position);
                 }
             }
 
@@ -138,6 +134,86 @@ impl<R: Renderer> Engine<R> {
         }
 
         Ok(())
+    }
+
+    fn fire_mouse_leave(&self, leaving: &[NodeId], position: Point<f32>) {
+        for &node_id in leaving.iter().rev() {
+            let cb = self
+                .arena
+                .get_data(node_id)
+                .ok()
+                .and_then(|d| d.event_handlers.on_mouse_leave.clone());
+
+            if let Some(cb) = cb {
+                let mut ctx =
+                    EventContext::new(node_id, node_id, Some(position), EventPhase::Target);
+                cb(&mut ctx);
+            }
+        }
+    }
+
+    fn fire_mouse_enter(&self, entering: &[NodeId], position: Point<f32>) {
+        for &node_id in entering {
+            let cb = self
+                .arena
+                .get_data(node_id)
+                .ok()
+                .and_then(|d| d.event_handlers.on_mouse_enter.clone());
+
+            if let Some(cb) = cb {
+                let mut ctx =
+                    EventContext::new(node_id, node_id, Some(position), EventPhase::Target);
+                cb(&mut ctx);
+            }
+        }
+    }
+
+    fn fire_mouse_out(&self, old_path: &[NodeId], target: NodeId, position: Point<f32>) {
+        for (idx, &node_id) in old_path.iter().rev().enumerate() {
+            let cb = self
+                .arena
+                .get_data(node_id)
+                .ok()
+                .and_then(|d| d.event_handlers.on_mouse_out.clone());
+
+            if let Some(cb) = cb {
+                let phase = if idx == 0 {
+                    EventPhase::Target
+                } else {
+                    EventPhase::Bubble
+                };
+                let mut ctx = EventContext::new(target, node_id, Some(position), phase);
+                cb(&mut ctx);
+
+                if ctx.is_propagation_stopped() {
+                    break;
+                }
+            }
+        }
+    }
+
+    fn fire_mouse_over(&self, new_path: &[NodeId], target: NodeId, position: Point<f32>) {
+        for (idx, &node_id) in new_path.iter().rev().enumerate() {
+            let cb = self
+                .arena
+                .get_data(node_id)
+                .ok()
+                .and_then(|d| d.event_handlers.on_mouse_over.clone());
+
+            if let Some(cb) = cb {
+                let phase = if idx == 0 {
+                    EventPhase::Target
+                } else {
+                    EventPhase::Bubble
+                };
+                let mut ctx = EventContext::new(target, node_id, Some(position), phase);
+                cb(&mut ctx);
+
+                if ctx.is_propagation_stopped() {
+                    break;
+                }
+            }
+        }
     }
 
     fn handle_mouse_down(&mut self, position: Point<f32>) -> Result<()> {
@@ -171,10 +247,18 @@ impl<R: Renderer> Engine<R> {
         Ok(())
     }
 
-    fn handle_mouse_up(&mut self, position: Point<f32>) -> Result<()> {
-        let hit_path = hit_test(&self.arena, self.root, position);
+    fn handle_mouse_up(&mut self, _position: Point<f32>) -> Result<()> {
+        let mut active_nodes = Vec::new();
 
-        for &node_id in hit_path.iter().rev() {
+        self.arena.traverse(
+            self.root,
+            &mut (|node_id, _, _, _| {
+                active_nodes.push(node_id);
+            }),
+            (),
+        );
+
+        for node_id in active_nodes {
             self.set_state(node_id, InteractionState::ACTIVE, false)?;
         }
 
@@ -212,8 +296,8 @@ impl<R: Renderer> Engine<R> {
                 rect.size.width,
                 rect.size.height,
                 SWP_NOZORDER | SWP_NOACTIVATE,
-            )?
-        };
+            )?;
+        }
 
         *frame = true;
 
@@ -228,6 +312,7 @@ impl<R: Renderer> Engine<R> {
         let hovered = self.hover_path.clone();
 
         for node_id in hovered {
+            self.set_state(node_id, InteractionState::HOVER, false)?;
             self.set_state(node_id, InteractionState::ACTIVE, false)?;
         }
 
@@ -242,7 +327,7 @@ impl<R: Renderer> Engine<R> {
         trace_engine_event(&event);
 
         let mut result = || -> Result<()> {
-            match event {
+            (match event {
                 EngineEvent::WindowCreated => self.handle_window_created(&mut force_frame),
 
                 EngineEvent::WindowResized { size: new_size } => {
@@ -272,7 +357,7 @@ impl<R: Renderer> Engine<R> {
                 EngineEvent::WindowFocusLost => self.handle_window_focus_lost(&mut force_frame),
 
                 _ => Ok(()),
-            }?;
+            })?;
 
             if Runtime::has_updates()
                 || force_frame
@@ -302,6 +387,17 @@ impl<R: Renderer> Engine<R> {
         data.interaction_state.set_flag(state, on);
 
         if data.interaction_state != before {
+            if data.interaction_state.is_hovered() {
+                match &mut data.kind {
+                    NodeKind::Div { style, div_hover } => {
+                        for f in div_hover.patches.iter() {
+                            f(Arc::make_mut(style))
+                        }
+                    }
+                    _ => {}
+                }
+            }
+
             self.arena.mark_dirty(node_id, DirtyFlags::PAINT)?;
         }
 
@@ -332,37 +428,24 @@ impl<R: Renderer> Engine<R> {
                     layout.unrounded.size.height,
                 );
 
-                let node_style = node
-                    .style
-                    .resolve_with_state(node.interaction_state, &node.state_styles.node);
-
                 if layout_dirty || paint_dirty {
                     commands.push(match &node.kind {
-                        NodeKind::Div(props) => {
-                            let props = props
-                                .resolve_with_state(node.interaction_state, &node.state_styles.div);
-                            RenderCommand::Rect {
-                                bounds: unrounded_bounds,
-                                color: props.background_color,
-                                corner_radius: props.corner_radius,
-                                opacity: node_style.opacity,
-                                transform: node_style.transform.unwrap_or(Transform::IDENTITY),
-                                z_index: node_style.z_index,
-                            }
-                        }
-                        NodeKind::Text(props) => {
-                            let props = props.resolve_with_state(
-                                node.interaction_state,
-                                &node.state_styles.text,
-                            );
-                            RenderCommand::Text {
-                                bounds: unrounded_bounds,
-                                props: props,
-                                opacity: node_style.opacity,
-                                transform: node_style.transform.unwrap_or(Transform::IDENTITY),
-                                z_index: node_style.z_index,
-                            }
-                        }
+                        NodeKind::Div { style: props, .. } => RenderCommand::Rect {
+                            // TODO: CHANGE
+                            bounds: unrounded_bounds,
+                            color: props.background_color,
+                            corner_radius: props.corner_radius,
+                            opacity: node.style.opacity,
+                            transform: node.style.transform.unwrap_or(Transform::IDENTITY),
+                            z_index: node.style.z_index,
+                        },
+                        NodeKind::Text(props) => RenderCommand::Text {
+                            bounds: unrounded_bounds,
+                            props: Arc::clone(props),
+                            opacity: node.style.opacity,
+                            transform: node.style.transform.unwrap_or(Transform::IDENTITY),
+                            z_index: node.style.z_index,
+                        },
                     });
                     redrawn_nodes.push(node_id);
                 }
@@ -382,11 +465,8 @@ impl<R: Renderer> Engine<R> {
     pub fn frame(&mut self) -> Result<()> {
         let pending = Runtime::drain_updates();
 
-        // let mut changed_nodes = vec![];
-
         for update in pending {
             if let Ok((data, layout)) = self.arena.get_data_layout_mut(update.node_id) {
-                // changed_nodes.push(update.node_id);
                 (update.apply)(data, layout);
             }
 
@@ -446,115 +526,86 @@ impl<R: Renderer> Engine<R> {
 
 #[cfg(test)]
 mod tests {
-    use std::{cell::Cell, panic::AssertUnwindSafe, rc::Rc, time::Instant};
-
     use super::*;
     use crate::{
         core::{
             event::MouseEvents,
             layout::{
-                LeafStyleBuilder,
+                ContainerStyleBuilder, LeafStyleBuilder,
                 types::{
                     dimension::{percent, px},
                     point::Point,
                     size::Size,
                 },
             },
-            render::{Dpi, RenderCommand, Renderer},
+            reactive::signal::signal,
             style::Color,
+            test::tests::TestRenderer,
         },
-        elements::{
-            div::{ChildrenExt, div, style::DivStyleBuilder},
-            text::style::TextStyle,
-        },
+        elements::div::{ChildrenExt, div, style::DivStyleBuilder /*style::DivStyleBuilder*/},
     };
 
-    struct TestRenderer {
-        size: Size<usize>,
-        dpi: Dpi,
-        render_calls: usize,
-    }
-
-    impl TestRenderer {
-        fn new(size: Size<usize>) -> Self {
-            Self {
-                size,
-                dpi: Dpi::uniform(96.0),
-                render_calls: 0,
-            }
-        }
-    }
-
-    impl Renderer for TestRenderer {
-        fn render(&mut self, _commands: &[RenderCommand]) -> Result<()> {
-            self.render_calls += 1;
-            Ok(())
-        }
-
-        fn resize(&mut self, size: Size<usize>) -> Result<()> {
-            self.size = size;
-            Ok(())
-        }
-
-        fn measure_text(
-            &mut self,
-            _text_props: &TextStyle,
-            _available_size: Size<AvailableSpace>,
-        ) -> Result<Size<f32>> {
-            Ok(Size::wh(0.0, 0.0))
-        }
-
-        fn set_dpi(&mut self, dpi: Dpi) -> Result<()> {
-            self.dpi = dpi;
-            Ok(())
-        }
-    }
-
     #[test]
-    fn interaction_sequence_does_not_panic() {
-        let root = div().size(percent(1.0)).bg(Color::GREEN);
+    fn interaction_enter_leave() {
+        let inner_enter_count = signal(0);
+        let inner_leave_count = signal(0);
+        let inner_over_count = signal(0);
+        let inner_out_count = signal(0);
 
-        let mut engine = Engine::new(
-            TestRenderer::new(Size::wh(400, 300)),
-            Box::new(root),
-            Size::wh(400, 300),
-        )
-        .expect("engine init");
-
-        let result = std::panic::catch_unwind(AssertUnwindSafe(|| {
-            engine.dispatch_event(EngineEvent::WindowCreated);
-            engine.dispatch_event(EngineEvent::MouseMove {
-                position: Point::xy(10.0, 10.0),
-            });
-            engine.dispatch_event(EngineEvent::MouseDown {
-                position: Point::xy(10.0, 10.0),
-                button: MouseButton::Left,
-            });
-            engine.dispatch_event(EngineEvent::MouseUp {
-                position: Point::xy(10.0, 10.0),
-                button: MouseButton::Left,
-            });
-            engine.dispatch_event(EngineEvent::MouseMove {
-                position: Point::xy(9999.0, 9999.0),
-            });
-        }));
-
-        assert!(result.is_ok(), "interaction pipeline panicked");
-    }
-
-    #[test]
-    fn hover_enter_leave_baseline_sequence() {
-        let enter_count = Rc::new(Cell::new(0));
-        let leave_count = Rc::new(Cell::new(0));
-
-        let enter_count_cb = Rc::clone(&enter_count);
-        let leave_count_cb = Rc::clone(&leave_count);
+        let outer_enter_count = signal(0);
+        let outer_leave_count = signal(0);
+        let outer_over_count = signal(0);
+        let outer_out_count = signal(0);
 
         let root = div()
             .size(percent(1.0))
             .bg(Color::GREEN)
-            .on_mouse_enter(move |_| enter_count_cb.set(enter_count_cb.get() + 1))
-            .on_mouse_leave(move |_| leave_count_cb.set(leave_count_cb.get() + 1));
+            .items_center()
+            .justify_center()
+            .child(
+                div()
+                    .size(px(10.0))
+                    .on_mouse_enter(move |_| {
+                        inner_enter_count.update(|ec| {
+                            *ec += 1;
+                        })
+                    })
+                    .on_mouse_leave(move |_| {
+                        inner_leave_count.update(|lc| {
+                            *lc += 1;
+                        })
+                    })
+                    .on_mouse_over(move |_| {
+                        inner_over_count.update(|c| {
+                            *c += 1;
+                        })
+                    })
+                    .on_mouse_out(move |_| {
+                        inner_out_count.update(|c| {
+                            *c += 1;
+                        })
+                    }),
+            )
+            .on_mouse_enter(move |_| {
+                outer_enter_count.update(|ec| {
+                    *ec += 1;
+                })
+            })
+            .on_mouse_leave(move |_| {
+                outer_leave_count.update(|lc| {
+                    *lc += 1;
+                })
+            })
+            .on_mouse_over(move |_| {
+                outer_over_count.update(|c| {
+                    *c += 1;
+                })
+            })
+            .on_mouse_out(move |_| {
+                outer_out_count.update(|c| {
+                    *c += 1;
+                })
+            });
 
         let mut engine = Engine::new(
             TestRenderer::new(Size::wh(400, 300)),
@@ -562,31 +613,164 @@ mod tests {
             Size::wh(400, 300),
         )
         .expect("engine init");
+
+        macro_rules! get_interaction {
+            (hover) => {{
+                let mut count = 0;
+                engine.arena.traverse(
+                    engine.root,
+                    &mut |_, node_data, _, _| {
+                        if node_data.interaction_state.is_hovered() {
+                            count += 1;
+                        }
+                    },
+                    (),
+                );
+
+                count
+            }};
+            (active) => {{
+                let mut count = 0;
+                engine.arena.traverse(
+                    engine.root,
+                    &mut |_, node_data, _, _| {
+                        if node_data.interaction_state.is_active() {
+                            count += 1;
+                        }
+                    },
+                    (),
+                );
+
+                count
+            }};
+        }
 
         engine.dispatch_event(EngineEvent::WindowCreated);
 
         engine.dispatch_event(EngineEvent::MouseMove {
             position: Point::xy(10.0, 10.0),
         });
+
+        assert_eq!(outer_enter_count.get(), 1);
+        assert_eq!(outer_leave_count.get(), 0);
+        assert_eq!(outer_over_count.get(), 1);
+        assert_eq!(outer_out_count.get(), 0);
+
         engine.dispatch_event(EngineEvent::MouseMove {
             position: Point::xy(20.0, 20.0),
         });
+
+        assert_eq!(outer_enter_count.get(), 1);
+        assert_eq!(outer_over_count.get(), 1);
+
+        engine.dispatch_event(EngineEvent::MouseMove {
+            position: Point::xy(400.0 / 2.0, 300.0 / 2.0),
+        });
+
+        assert_eq!(inner_enter_count.get(), 1);
+        assert_eq!(inner_leave_count.get(), 0);
+
+        assert_eq!(get_interaction!(hover), 2, "[inner square]");
+
+        engine.dispatch_event(EngineEvent::MouseDown {
+            position: Point::xy(400.0 / 2.0 + 1.0, 300.0 / 2.0 + 1.0),
+            button: MouseButton::Left,
+        });
+
+        assert_eq!(get_interaction!(active), 2, "[inner square]");
+
+        engine.dispatch_event(EngineEvent::MouseMove {
+            position: Point::xy(30.0, 70.0),
+        });
+
+        assert_eq!(inner_leave_count.get(), 1);
+
+        assert_eq!(get_interaction!(hover), 1, "[outer square]");
+        assert_eq!(get_interaction!(active), 1, "[outer square]");
+
         engine.dispatch_event(EngineEvent::MouseMove {
             position: Point::xy(9999.0, 9999.0),
         });
 
-        assert_eq!(enter_count.get(), 1, "enter should fire once");
-        assert_eq!(leave_count.get(), 1, "leave should fire once");
+        assert_eq!(get_interaction!(hover), 0, "[outside]");
+        assert_eq!(get_interaction!(active), 0, "[outside]");
+
+        assert_eq!(inner_enter_count.get(), 1);
+        assert_eq!(inner_leave_count.get(), 1);
+
+        assert_eq!(outer_enter_count.get(), 1);
+        assert_eq!(outer_leave_count.get(), 1);
+
+        assert_eq!(inner_over_count.get(), 1);
+        assert_eq!(inner_out_count.get(), 1);
+
+        assert_eq!(outer_over_count.get(), 3);
+        assert_eq!(outer_out_count.get(), 3);
     }
 
     #[test]
-    #[ignore = "manual baseline perf probe"]
-    /// Got: 3.1043ms - 3.9207ms - 3.3785ms - 3.7557ms ~ 3.5ms
-    fn baseline_mousemove_perf_probe() {
+    fn interaction_over_out_bubble_stop_propagation() {
+        let inner_enter_count = signal(0);
+        let inner_leave_count = signal(0);
+        let inner_over_count = signal(0);
+        let inner_out_count = signal(0);
+
+        let outer_enter_count = signal(0);
+        let outer_leave_count = signal(0);
+        let outer_over_count = signal(0);
+        let outer_out_count = signal(0);
+
         let root = div()
             .size(percent(1.0))
             .bg(Color::GREEN)
-            .child(div().size(px(100.0)));
+            .items_center()
+            .justify_center()
+            .child(
+                div()
+                    .size(px(10.0))
+                    .on_mouse_enter(move |_| {
+                        inner_enter_count.update(|c| {
+                            *c += 1;
+                        })
+                    })
+                    .on_mouse_leave(move |_| {
+                        inner_leave_count.update(|c| {
+                            *c += 1;
+                        })
+                    })
+                    .on_mouse_over(move |ctx| {
+                        inner_over_count.update(|c| {
+                            *c += 1;
+                        });
+                        ctx.stop_propagation();
+                    })
+                    .on_mouse_out(move |ctx| {
+                        inner_out_count.update(|c| {
+                            *c += 1;
+                        });
+                        ctx.stop_propagation();
+                    }),
+            )
+            .on_mouse_enter(move |_| {
+                outer_enter_count.update(|c| {
+                    *c += 1;
+                })
+            })
+            .on_mouse_leave(move |_| {
+                outer_leave_count.update(|c| {
+                    *c += 1;
+                })
+            })
+            .on_mouse_over(move |_| {
+                outer_over_count.update(|c| {
+                    *c += 1;
+                })
+            })
+            .on_mouse_out(move |_| {
+                outer_out_count.update(|c| {
+                    *c += 1;
+                })
+            });
 
         let mut engine = Engine::new(
             TestRenderer::new(Size::wh(400, 300)),
@@ -597,16 +781,22 @@ mod tests {
 
         engine.dispatch_event(EngineEvent::WindowCreated);
 
-        let start = Instant::now();
-        for i in 0..5000usize {
-            let x = (i % 400) as f32;
-            let y = ((i * 7) % 300) as f32;
-            engine.dispatch_event(EngineEvent::MouseMove {
-                position: Point::xy(x, y),
-            });
-        }
-        let elapsed = start.elapsed();
+        engine.dispatch_event(EngineEvent::MouseMove {
+            position: Point::xy(400.0 / 2.0, 300.0 / 2.0),
+        });
 
-        eprintln!("[phase0][perf] 5000 mouse moves in {:?}", elapsed);
+        engine.dispatch_event(EngineEvent::MouseMove {
+            position: Point::xy(9999.0, 9999.0),
+        });
+
+        assert_eq!(inner_enter_count.get(), 1);
+        assert_eq!(inner_leave_count.get(), 1);
+        assert_eq!(outer_enter_count.get(), 1);
+        assert_eq!(outer_leave_count.get(), 1);
+
+        assert_eq!(inner_over_count.get(), 1);
+        assert_eq!(inner_out_count.get(), 1);
+        assert_eq!(outer_over_count.get(), 0);
+        assert_eq!(outer_out_count.get(), 0);
     }
 }

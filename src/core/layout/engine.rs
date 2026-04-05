@@ -96,7 +96,7 @@ impl<'a, R: Renderer> taffy::LayoutPartialTree for LayoutContext<'a, R> {
             let style = layout_context.get_layout(node_id).style.clone(); // TODO: fix this
 
             match node_kind {
-                NodeKind::Div(_) => compute_flexbox_layout(layout_context, node_id, inputs),
+                NodeKind::Div { .. } => compute_flexbox_layout(layout_context, node_id, inputs),
                 NodeKind::Text(text_props) => compute_leaf_layout(
                     inputs,
                     &style,

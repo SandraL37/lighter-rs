@@ -4,7 +4,7 @@ use crate::{
         layout::{ContainerStyleBuilder, LayoutStyle, LeafStyleBuilder},
         reactive::bind::{DeferredBinding, HasDeferredBindings},
     },
-    elements::div::{DivStyle, DivStyleBuilder},
+    elements::div::{DivStyle, DivStyleBuilder, style::DivStylePatch},
 };
 
 #[derive(Debug, Default)]
@@ -12,6 +12,8 @@ pub struct DivBuildProps {
     pub(crate) node: NodeStyle,
     pub(crate) layout: LayoutStyle,
     pub(crate) div: DivStyle,
+
+    pub(crate) div_hover: DivStylePatch,
 
     pub(crate) bindings: Vec<DeferredBinding>,
 }

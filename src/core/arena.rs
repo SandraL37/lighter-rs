@@ -2,9 +2,7 @@ pub mod node;
 pub mod tree;
 
 use crate::core::{
-    arena::node::{
-        EventHandlers, NodeData, NodeId, NodeKind, NodeRuntimeMeta, NodeStateStyles, NodeStyle,
-    },
+    arena::node::{EventHandlers, NodeData, NodeId, NodeKind, NodeStyle},
     error::*,
     interaction::InteractionState,
     layout::{LayoutStyle, NodeLayout},
@@ -88,12 +86,10 @@ impl NodeArena {
         event_handlers: EventHandlers,
     ) -> Result<NodeId> {
         let id = self.data.insert(NodeData {
-            kind,
+            kind: kind,
             style: props,
             dirty: DirtyFlags::all(),
             interaction_state: InteractionState::empty(),
-            state_styles: NodeStateStyles::default(),
-            runtime_meta: NodeRuntimeMeta::default(),
             event_handlers,
         });
 
