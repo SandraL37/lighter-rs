@@ -24,12 +24,12 @@ fn page() -> Div {
 fn root() -> impl Element {
     let square = div()
         .min_size(px(100.0))
-        .bg(Color::GREEN)
+        .bg(Color::GREEN.with_alpha(0.7))
         .rounded(4.0)
         .items_center()
         .justify_center()
-        .hover(|s| s.bg(Color::BLUE))
-        .active(|s| s.bg(Color::RED));
+        .hover(|s| s.bg(Color::GREEN.with_alpha(0.9)))
+        .active(|s| s.bg(Color::GREEN));
     let counter = signal(0.0f32);
 
     page()

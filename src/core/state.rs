@@ -64,23 +64,31 @@ impl<T> Prop<T> {
     }
 
     #[inline]
-    pub fn set_hover(&mut self, value: T) {
-        self.patch.hover = Some(value);
+    pub fn set_hover(&mut self, value: Option<T>) {
+        if let Some(value) = value {
+            self.patch.hover = Some(value);
+        }
     }
 
     #[inline]
-    pub fn set_active(&mut self, value: T) {
-        self.patch.active = Some(value);
+    pub fn set_active(&mut self, value: Option<T>) {
+        if let Some(value) = value {
+            self.patch.active = Some(value);
+        }
     }
 
     #[inline]
-    pub fn set_focus(&mut self, value: T) {
-        self.patch.focus = Some(value);
+    pub fn set_focus(&mut self, value: Option<T>) {
+        if let Some(value) = value {
+            self.patch.focus = Some(value);
+        }
     }
 
     #[inline]
-    pub fn set_disabled(&mut self, value: T) {
-        self.patch.disabled = Some(value);
+    pub fn set_disabled(&mut self, value: Option<T>) {
+        if let Some(value) = value {
+            self.patch.disabled = Some(value);
+        }
     }
 }
 

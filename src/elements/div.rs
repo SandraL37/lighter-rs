@@ -40,48 +40,68 @@ impl Div {
     /// Apply style overrides when hovered.
     pub fn hover(mut self, f: impl Fn(DivPatchProps) -> DivPatchProps) -> Self {
         let overrides = f(DivPatchProps::default());
-        if let Some(color) = overrides.div.background_color {
-            self.props.div.background_color.set_hover(color);
-        }
-        if let Some(radius) = overrides.div.corner_radius {
-            self.props.div.corner_radius.set_hover(radius);
-        }
+
+        self.props
+            .div
+            .background_color
+            .set_hover(overrides.div.background_color);
+
+        self.props
+            .div
+            .corner_radius
+            .set_hover(overrides.div.corner_radius);
+
         self
     }
 
     /// Apply style overrides when active (pressed).
     pub fn active(mut self, f: impl Fn(DivPatchProps) -> DivPatchProps) -> Self {
         let overrides = f(DivPatchProps::default());
-        if let Some(color) = overrides.div.background_color {
-            self.props.div.background_color.set_active(color);
-        }
-        if let Some(radius) = overrides.div.corner_radius {
-            self.props.div.corner_radius.set_active(radius);
-        }
+
+        self.props
+            .div
+            .background_color
+            .set_active(overrides.div.background_color);
+
+        self.props
+            .div
+            .corner_radius
+            .set_active(overrides.div.corner_radius);
+
         self
     }
 
     /// Apply style overrides when focused.
-    pub fn focus(mut self, f: impl Fn(DivStylePatch) -> DivStylePatch) -> Self {
-        let overrides = f(DivStylePatch::default());
-        if let Some(color) = overrides.background_color {
-            self.props.div.background_color.set_focus(color);
-        }
-        if let Some(radius) = overrides.corner_radius {
-            self.props.div.corner_radius.set_focus(radius);
-        }
+    pub fn focus(mut self, f: impl Fn(DivPatchProps) -> DivPatchProps) -> Self {
+        let overrides = f(DivPatchProps::default());
+
+        self.props
+            .div
+            .background_color
+            .set_focus(overrides.div.background_color);
+
+        self.props
+            .div
+            .corner_radius
+            .set_focus(overrides.div.corner_radius);
+
         self
     }
 
     /// Apply style overrides when disabled.
-    pub fn disabled_style(mut self, f: impl Fn(DivStylePatch) -> DivStylePatch) -> Self {
-        let overrides = f(DivStylePatch::default());
-        if let Some(color) = overrides.background_color {
-            self.props.div.background_color.set_disabled(color);
-        }
-        if let Some(radius) = overrides.corner_radius {
-            self.props.div.corner_radius.set_disabled(radius);
-        }
+    pub fn disabled_style(mut self, f: impl Fn(DivPatchProps) -> DivPatchProps) -> Self {
+        let overrides = f(DivPatchProps::default());
+
+        self.props
+            .div
+            .background_color
+            .set_disabled(overrides.div.background_color);
+
+        self.props
+            .div
+            .corner_radius
+            .set_disabled(overrides.div.corner_radius);
+
         self
     }
 }
@@ -161,6 +181,7 @@ impl Element for Div {
             layout,
             div,
             bindings,
+            ..
         } = props;
 
         let id = arena.create_node(
@@ -185,9 +206,5 @@ impl Element for Div {
 
 /// # Div
 pub fn div() -> Div {
-    Div {
-        props: DivBuildProps::default(),
-        children: Vec::new(),
-        event_handlers: EventHandlers::default(),
-    }
+    Div::default()
 }

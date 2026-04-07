@@ -200,3 +200,13 @@ s.update(|v| *v += 1);
 ```
 
 address hit testing translation problem
+
+
+# TO REFACTOR
+write before a stable and cool hover active system
+only then we must think about transitions
+
+remove props at ALL
+and replace with statestyle
+
+maintain a `current_style` attribute that holds a reference to the style that we are modifying.

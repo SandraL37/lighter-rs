@@ -10,12 +10,20 @@ use crate::{
     },
 };
 
+#[derive(Default, Debug)]
+pub enum PatchKind {
+    #[default]
+    Base,
+    Hover,
+}
+
 #[derive(Debug, Default)]
 pub struct DivBuildProps {
     pub(crate) node: NodeStyle,
     pub(crate) layout: LayoutStyle,
     pub(crate) div: DivStyle,
 
+    pub(crate) patch_kind: PatchKind,
     pub(crate) bindings: Vec<DeferredBinding>,
 }
 
