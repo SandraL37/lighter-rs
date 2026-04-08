@@ -4,18 +4,8 @@ use crate::{
         layout::{ContainerStyleBuilder, LayoutStyle, LeafStyleBuilder},
         reactive::bind::{DeferredBinding, HasDeferredBindings},
     },
-    elements::div::{
-        DivStyle, DivStyleBuilder,
-        style::{DivStylePatch, DivStylePatcher},
-    },
+    elements::div::{DivStyle, DivStyleBuilder},
 };
-
-#[derive(Default, Debug)]
-pub enum PatchKind {
-    #[default]
-    Base,
-    Hover,
-}
 
 #[derive(Debug, Default)]
 pub struct DivBuildProps {
@@ -23,7 +13,6 @@ pub struct DivBuildProps {
     pub(crate) layout: LayoutStyle,
     pub(crate) div: DivStyle,
 
-    pub(crate) patch_kind: PatchKind,
     pub(crate) bindings: Vec<DeferredBinding>,
 }
 
@@ -56,16 +45,5 @@ impl NodeStyleBuilder for DivBuildProps {
 impl DivStyleBuilder for DivBuildProps {
     fn div_style(style: &mut Self::Style) -> &mut DivStyle {
         &mut style.div
-    }
-}
-
-#[derive(Debug, Default)]
-pub struct DivPatchProps {
-    pub(crate) div: DivStylePatch,
-}
-
-impl DivStylePatcher for DivPatchProps {
-    fn div_style(&mut self) -> &mut DivStylePatch {
-        &mut self.div
     }
 }

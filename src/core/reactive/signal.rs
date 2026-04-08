@@ -51,6 +51,10 @@ impl<T: Clone + 'static> Signal<T> {
     pub(crate) fn subscribe(self, f: impl Fn() + 'static) {
         Runtime::subscribe(self.id, Rc::new(f));
     }
+
+    pub fn map<U: Clone + 'static>(self, f: impl Fn(T) -> U + 'static) -> Signal<U> {
+        Signal::derive(move || f(self.get()))
+    }
 }
 
 pub fn signal<T: Clone + 'static>(value: T) -> Signal<T> {

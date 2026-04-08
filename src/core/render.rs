@@ -27,6 +27,7 @@ pub enum RenderCommand {
 
     Text {
         bounds: Rect<f32>,
+        color: Color,
         props: Arc<TextStyle>,
         opacity: f32,
         transform: Transform,

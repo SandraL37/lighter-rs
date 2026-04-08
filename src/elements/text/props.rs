@@ -12,6 +12,7 @@ pub struct TextBuildProps {
     pub(crate) node: NodeStyle,
     pub(crate) layout: LayoutStyle,
     pub(crate) text: TextStyle,
+
     pub(crate) bindings: Vec<DeferredBinding>,
 }
 

@@ -364,10 +364,15 @@ impl Renderer for D2DRenderer {
 
                             self.d2d_device_context.FillRoundedRectangle(&rect, &brush);
                         }
-                        RenderCommand::Text { bounds, props, .. } => {
+                        RenderCommand::Text {
+                            color,
+                            bounds,
+                            props,
+                            ..
+                        } => {
                             let layout = self.cache.get_text_layout(props, bounds.size)?;
 
-                            let brush = self.cache.get_solid_color_brush(&props.color)?;
+                            let brush = self.cache.get_solid_color_brush(&color)?;
 
                             self.d2d_device_context.DrawTextLayout(
                                 bounds.location.into(),

@@ -422,14 +422,18 @@ impl<R: Renderer> Engine<R> {
                     commands.push(match &node.kind {
                         NodeKind::Div(props) => RenderCommand::Rect {
                             bounds: unrounded_bounds,
-                            color: props.background_color.get(node.interaction_state),
-                            corner_radius: props.corner_radius.get(node.interaction_state),
+                            color: props.background_color.resolve(node.interaction_state).get(),
+                            corner_radius: props
+                                .corner_radius
+                                .resolve(node.interaction_state)
+                                .get(),
                             opacity: node.style.opacity,
                             transform: node.style.transform.unwrap_or(Transform::IDENTITY),
                             z_index: node.style.z_index,
                         },
                         NodeKind::Text(props) => RenderCommand::Text {
                             bounds: unrounded_bounds,
+                            color: props.color.resolve(node.interaction_state).get(),
                             props: Arc::clone(props),
                             opacity: node.style.opacity,
                             transform: node.style.transform.unwrap_or(Transform::IDENTITY),

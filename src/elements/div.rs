@@ -17,8 +17,8 @@ use crate::{
     elements::{
         Element,
         div::{
-            props::{DivBuildProps, DivPatchProps},
-            style::{DivStyle, DivStyleBuilder, DivStylePatch},
+            props::DivBuildProps,
+            style::{DivStyle, DivStyleBuilder},
         },
     },
 };
@@ -29,81 +29,6 @@ pub struct Div {
     props: DivBuildProps,
     children: Vec<Box<dyn Element>>,
     event_handlers: EventHandlers,
-}
-
-impl Div {
-    pub fn style(mut self, f: impl Fn(DivBuildProps) -> DivBuildProps) -> Self {
-        self.props = f(self.props);
-        self
-    }
-
-    /// Apply style overrides when hovered.
-    pub fn hover(mut self, f: impl Fn(DivPatchProps) -> DivPatchProps) -> Self {
-        let overrides = f(DivPatchProps::default());
-
-        self.props
-            .div
-            .background_color
-            .set_hover(overrides.div.background_color);
-
-        self.props
-            .div
-            .corner_radius
-            .set_hover(overrides.div.corner_radius);
-
-        self
-    }
-
-    /// Apply style overrides when active (pressed).
-    pub fn active(mut self, f: impl Fn(DivPatchProps) -> DivPatchProps) -> Self {
-        let overrides = f(DivPatchProps::default());
-
-        self.props
-            .div
-            .background_color
-            .set_active(overrides.div.background_color);
-
-        self.props
-            .div
-            .corner_radius
-            .set_active(overrides.div.corner_radius);
-
-        self
-    }
-
-    /// Apply style overrides when focused.
-    pub fn focus(mut self, f: impl Fn(DivPatchProps) -> DivPatchProps) -> Self {
-        let overrides = f(DivPatchProps::default());
-
-        self.props
-            .div
-            .background_color
-            .set_focus(overrides.div.background_color);
-
-        self.props
-            .div
-            .corner_radius
-            .set_focus(overrides.div.corner_radius);
-
-        self
-    }
-
-    /// Apply style overrides when disabled.
-    pub fn disabled_style(mut self, f: impl Fn(DivPatchProps) -> DivPatchProps) -> Self {
-        let overrides = f(DivPatchProps::default());
-
-        self.props
-            .div
-            .background_color
-            .set_disabled(overrides.div.background_color);
-
-        self.props
-            .div
-            .corner_radius
-            .set_disabled(overrides.div.corner_radius);
-
-        self
-    }
 }
 
 pub trait ChildrenExt: Sized {

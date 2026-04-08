@@ -1,4 +1,4 @@
-use crate::core::reactive::dirty::DirtyFlags;
+use crate::core::state::ComputedState;
 
 bitflags::bitflags! {
     #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default)]
@@ -38,7 +38,14 @@ impl InteractionState {
     }
 }
 
-pub enum Patch<T> {
-    Keep,
-    Set { value: T, dirty_flags: DirtyFlags },
+impl From<InteractionState> for ComputedState {
+    fn from(value: InteractionState) -> Self {
+        if value.is_active() {
+            ComputedState::Active
+        } else if value.is_hovered() {
+            ComputedState::Hover
+        } else {
+            ComputedState::Base
+        }
+    }
 }

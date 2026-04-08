@@ -36,14 +36,14 @@
 - [x] P3.5 apply only changed fields to runtime node data and mark precise dirty flags.
 - [x] P3.6 route all interaction-state mutations through one `apply_interaction_state` entrypoint.
 
-### Phase 4 - Builder API Unification (Tailwind-like DX)
+### ~~ Phase 4 - Builder API Unification (Tailwind-like DX) ~~
 
-- [ ] P4.1 make `when(state, f)` the primitive state API.
-- [ ] P4.2 implement sugar methods on top: `.hover(...)`, `.active(...)`, `.focus_visible(...)`, `.disabled(...)`.
-- [ ] P4.3 ensure state builders exist for Div and Text from day one (no Div-only special case).
-- [ ] P4.4 make style patch builders property-complete for current API surface (node props, div props, text props, layout props).
-- [ ] P4.5 preserve existing fluent base-style methods unchanged to avoid migration pain.
-- [ ] P4.6 add compile examples validating DSL ergonomics in docs/tests.
+- [x] P4.1 make `when(state, f)` the primitive state API.
+- [x] P4.2 implement sugar methods on top: `.hover(...)`, `.active(...)`, `.focus_visible(...)`, `.disabled(...)`.
+- [x] P4.3 ensure state builders exist for Div and Text from day one (no Div-only special case).
+- [x] P4.4 make style patch builders property-complete for current API surface (node props, div props, text props, layout props).
+- [x] P4.5 preserve existing fluent base-style methods unchanged to avoid migration pain.
+- [x] P4.6 add compile examples validating DSL ergonomics in docs/tests.~~
 
 ### Phase 5 - Transition and Animation Foundation
 
@@ -167,46 +167,296 @@
 Minimal examples to keep in mind during implementation:
 
 ```rust
-div()
-  .bg(palette::PRIMARY)
-  .opacity(1.0)
-  .hover(|s| s.bg(palette::PRIMARY.with_alpha(0.70)))
-  .active(|s| s.scale(0.98))
-  .focus_visible(|s| s.ring(2.0, palette::ACCENT))
-  .transition(|t| t.color(120).transform(90).ease(Ease::OutCubic));
+use my_ui::*;
+
+fn app(
+    is_error:    Signal<bool>,
+    is_loading:  Signal<bool>,
+    accent:      Signal<Color>,
+    font_scale:  Signal<f32>,
+    count:       Signal<i32>,
+) -> impl Element {
+
+
+    // ─── 1. BARE VALUES — simplest case ────────────────────────────────────────
+
+    div()
+        .bg(RED)
+        .opacity(1.0f32)
+        .rounding(px(8.0))
+        .width(px(200.0))
+        .height(px(48.0))
+        .font_size(rem(1.0))
+
+
+    // ─── 2. STATES — instant snap, no transitions ───────────────────────────────
+
+    div()
+        .bg(BLUE_500.hover(BLUE_400).active(BLUE_600).disabled(GRAY_300))
+        .opacity(1.0f32.hover(0.9f32).active(0.8f32).disabled(0.4f32))
+        .rounding(px(8.0).hover(px(12.0)))
+        .border_width(px(1.0).hover(px(2.0)))
+        .border_color(BLUE_600.hover(BLUE_300).disabled(GRAY_400))
+        .text_color(WHITE.disabled(GRAY_500))
+        .cursor(Cursor::Pointer.disabled(Cursor::NotAllowed))
+
+
+    // ─── 3. TRANSITIONS — uniform enter/exit ────────────────────────────────────
+
+    div()
+        .bg(BLUE_500
+            .hover(BLUE_400).transition(150.ms(), EASE_IN_OUT)
+            .active(BLUE_600).transition(80.ms(), EASE_IN_OUT)
+            .disabled(GRAY_300).transition(200.ms(), EASE_OUT)
+        )
+        .opacity(1.0f32
+            .hover(0.9f32).transition(150.ms(), EASE_OUT)
+            .disabled(0.4f32).transition(200.ms(), EASE_IN_OUT)
+        )
+        .rounding(px(8.0)
+            .hover(px(12.0)).transition(200.ms(), EASE_OUT)
+        )
+
+
+    // ─── 4. TRANSITIONS — asymmetric enter/exit ─────────────────────────────────
+
+    div()
+        .bg(RED
+            .hover(GREEN).enter(100.ms(), EASE_IN).exit(250.ms(), EASE_OUT)
+            .active(BLUE).enter(50.ms(),  EASE_IN).exit(150.ms(), EASE_OUT)
+        )
+        .shadow(Shadow::sm()
+            .hover(Shadow::lg()).enter(200.ms(), EASE_OUT).exit(300.ms(), EASE_IN)
+            .active(Shadow::none()).enter(60.ms(), EASE_IN).exit(100.ms(), EASE_OUT)
+        )
+        .translate_y(px(0.0)
+            .hover(px(-4.0)).enter(200.ms(), EASE_OUT).exit(300.ms(), EASE_IN)
+        )
+
+
+    // ─── 5. SIGNALS — reactive values, no states ────────────────────────────────
+
+    div()
+        // Signal<Color> coerces directly
+        .bg(accent)
+
+        // Signal<f32> coerces directly
+        .opacity(is_loading.map(|l| if l { 0.5 } else { 1.0 }))
+
+        // Signal<Px> for layout
+        .width(count.map(|c| px(c as f32 * 40.0)))
+
+        // Signal<bool> driving a style choice
+        .border_color(is_error.map(|e| if e { RED_500 } else { GRAY_300 }))
+
+        // Derived signal combining two signals
+        .font_size(font_scale.map(|s| rem(s)))
+
+
+    // ─── 6. SIGNALS + STATES — reactive property with interactive states ─────────
+
+    div()
+        // The entire Property is driven by a signal
+        // hover/active colors derive from the same signal
+        .bg(accent.map(|c| {
+            c.hover(c.lighten(0.1))
+             .active(c.darken(0.1))
+             .disabled(c.desaturate(0.8))
+        }))
+
+        // Error state drives both value AND states
+        .border_color(is_error.map(|e| {
+            if e { RED_500.hover(RED_400).active(RED_600) }
+            else { GRAY_300.hover(GRAY_400).active(GRAY_500) }
+        }))
+
+        // Loading drives opacity including its hover behavior
+        .opacity(is_loading.map(|l| {
+            if l { 0.6f32.hover(0.6f32) }   // no hover effect while loading
+            else { 1.0f32.hover(0.9f32) }
+        }))
+
+        // Cursor reacts to multiple signals
+        .cursor(is_loading.map(|l| {
+            if l { Cursor::Wait }
+            else { Cursor::Pointer.disabled(Cursor::NotAllowed) }
+        }))
+
+
+    // ─── 7. SIGNALS + STATES + TRANSITIONS ──────────────────────────────────────
+
+    div()
+        .bg(accent.map(|c| {
+            c
+            .hover(c.lighten(0.1)).enter(100.ms(), EASE_OUT).exit(200.ms(), EASE_IN)
+            .active(c.darken(0.1)).transition(60.ms(), EASE_IN)
+        }))
+        .shadow(is_error.map(|e| {
+            if e {
+                Shadow::error()
+                    .hover(Shadow::error_lg()).transition(150.ms(), EASE_OUT)
+            } else {
+                Shadow::sm()
+                    .hover(Shadow::lg()).enter(200.ms(), EASE_OUT).exit(300.ms(), EASE_IN)
+            }
+        }))
+
+
+    // ─── 8. VISUAL PERCENT — resolved against own size post-layout ──────────────
+
+    // Circle — percent rounding resolved against own min side
+    div()
+        .width(px(48.0))
+        .height(px(48.0))
+        .rounding(percent(50.0))
+        .bg(BLUE_500.hover(BLUE_400).transition(150.ms(), EASE_OUT))
+
+    // Font size relative to parent
+    div()
+        .font_size(em(1.2))
+        .line_height(em(1.5))
+        .letter_spacing(em(0.02))
+
+    // Font size relative to root, also reactive
+    div()
+        .font_size(font_scale.map(|s| rem(s)))
+
+
+    // ─── 9. LAYOUT — taffy properties ───────────────────────────────────────────
+
+    div()
+        .width(px(200.0))
+        .width(percent(50.0))
+        .width(auto())
+        .height(px(48.0))
+        .min_width(px(100.0))
+        .max_width(px(600.0))
+        .padding(px(16.0))
+        .padding_x(px(24.0))
+        .padding_y(px(12.0))
+        .margin(px(8.0))
+        .margin_top(auto())
+        .gap(px(8.0))
+        .flex_grow(1.0)
+        .flex_shrink(0.0)
+        .flex_basis(percent(50.0))
+
+
+    // ─── 10. MIXED — some props animated, some instant, some reactive ────────────
+
+    div()
+        .bg(RED
+            .hover(GREEN).transition(200.ms(), EASE_OUT)   // animated
+        )
+        .rounding(px(8.0)
+            .hover(px(16.0))                               // instant snap
+        )
+        .cursor(Cursor::Pointer)                           // never animates
+        .opacity(is_loading.map(|l| {                      // reactive + animated
+            if l { 0.5f32 }
+            else { 1.0f32 }
+        }))
+        .border_color(is_error.map(|e| {                   // reactive + states + transition
+            if e { RED_500.hover(RED_400).transition(100.ms(), EASE_OUT) }
+            else { GRAY_300.hover(GRAY_400).transition(100.ms(), EASE_OUT) }
+        }))
+
+
+    // ─── 11. REAL WORLD — primary button ────────────────────────────────────────
+
+    div()
+        .width(px(160.0))
+        .height(px(44.0))
+        .padding_x(px(20.0))
+        .padding_y(px(10.0))
+        .rounding(px(8.0)
+            .hover(px(12.0)).transition(200.ms(), EASE_OUT)
+        )
+        .bg(accent.map(|c| {
+            c
+            .hover(c.lighten(0.1)).enter(100.ms(), EASE_OUT).exit(200.ms(), EASE_IN)
+            .active(c.darken(0.15)).transition(60.ms(), EASE_IN)
+            .disabled(GRAY_300)
+        }))
+        .opacity(is_loading.map(|l| {
+            if l { 0.7f32 } else { 1.0f32 }
+        }))
+        .shadow(Shadow::md()
+            .hover(Shadow::lg()).enter(200.ms(), EASE_OUT).exit(300.ms(), EASE_IN)
+            .active(Shadow::none()).transition(60.ms(), EASE_IN)
+            .disabled(Shadow::none())
+        )
+        .border_width(px(1.0))
+        .border_color(accent.map(|c| {
+            c.darken(0.1)
+             .hover(c.lighten(0.1)).transition(100.ms(), EASE_OUT)
+             .disabled(GRAY_400)
+        }))
+        .cursor(is_loading.map(|l| {
+            if l { Cursor::Wait }
+            else { Cursor::Pointer.disabled(Cursor::NotAllowed) }
+        }))
+        .text_color(WHITE.disabled(GRAY_500))
+        .font_size(rem(0.875))
+        .font_weight(FontWeight::Medium)
+        .translate_y(px(0.0)
+            .hover(px(-1.0)).enter(100.ms(), EASE_OUT).exit(150.ms(), EASE_IN)
+            .active(px(1.0)).transition(60.ms(), EASE_IN)
+        )
+
+
+    // ─── 12. REAL WORLD — input field ────────────────────────────────────────────
+
+    div()
+        .width(percent(100.0))
+        .height(px(40.0))
+        .padding_x(px(12.0))
+        .rounding(px(6.0))
+        .bg(WHITE.disabled(GRAY_50))
+        .border_width(px(1.0)
+            .focused(px(2.0)).transition(100.ms(), EASE_OUT)
+        )
+        .border_color(is_error.map(|e| {
+            if e {
+                RED_500
+                    .hover(RED_400).transition(150.ms(), EASE_OUT)
+                    .focused(RED_500).transition(100.ms(), EASE_OUT)
+            } else {
+                GRAY_300
+                    .hover(GRAY_400).transition(150.ms(), EASE_OUT)
+                    .focused(BLUE_500).transition(100.ms(), EASE_OUT)
+                    .disabled(GRAY_200)
+            }
+        }))
+        .shadow(Shadow::none()
+            .focused(Shadow::focus_ring(BLUE_500)).transition(100.ms(), EASE_OUT)
+        )
+        .text_color(GRAY_900.disabled(GRAY_400))
+        .font_size(rem(0.875))
+
+
+    // ─── 13. REAL WORLD — card with hover lift ───────────────────────────────────
+
+    div()
+        .width(px(320.0))
+        .padding(px(24.0))
+        .gap(px(16.0))
+        .rounding(px(12.0))
+        .bg(WHITE
+            .hover(GRAY_50).transition(200.ms(), EASE_OUT)
+        )
+        .border_width(px(1.0))
+        .border_color(GRAY_200
+            .hover(GRAY_300).transition(200.ms(), EASE_OUT)
+        )
+        .shadow(Shadow::sm()
+            .hover(Shadow::xl()).enter(200.ms(), EASE_OUT).exit(300.ms(), EASE_IN)
+        )
+        .translate_y(px(0.0)
+            .hover(px(-4.0)).enter(200.ms(), EASE_OUT).exit(300.ms(), EASE_IN)
+        )
+        .cursor(Cursor::Pointer)
+}
 ```
 
-```rust
-// Optional grouping for larger style blocks; fluent setters stay primary.
-div()
-  .style(|s| s.bg(palette::PRIMARY).rounded(12.0).px(px(16.0)).py(px(10.0)))
-  .hover(|s| s.bg(palette::PRIMARY.with_alpha(0.85)));
-```
-
-```rust
-// Reactive text DX target: closure sugar + explicit derived remains available.
-let counter = signal(0);
-text(|| format!("Counter: {}", counter.get()));
-// also valid:
-text(derived(move || format!("Counter: {}", counter.get())));
-```
-
-```rust
-// Signal API preference: object-style as default.
-let s = signal(0);
-s.get();
-s.set(1);
-s.update(|v| *v += 1);
-```
-
-address hit testing translation problem
-
-
-# TO REFACTOR
-write before a stable and cool hover active system
-only then we must think about transitions
-
-remove props at ALL
-and replace with statestyle
-
-maintain a `current_style` attribute that holds a reference to the style that we are modifying.
+BUG WHEN CLICKING IF THE HOVER EXIST AND THE ACTIVE NOT HOVER SHOULD PASS BUT THIS DOESN'T HAPPEN

@@ -3,6 +3,7 @@ use std::sync::Arc;
 use crate::{
     core::{
         reactive::{bind::HasDeferredBindings, dirty::DirtyFlags, signal::MaybeSignal},
+        state::{IntoStyleProp, Property},
         style::Color,
     },
     elements::text::IntoTextContent,
@@ -11,7 +12,7 @@ use crate::{
 #[derive(Debug, Clone)]
 pub struct TextStyle {
     pub content: Arc<str>,
-    pub color: Color,
+    pub color: Property<Color>,
     pub font_size: f32,
     pub font_family: Arc<str>,
     pub font_weight: FontWeight,
@@ -21,7 +22,7 @@ impl Default for TextStyle {
     fn default() -> Self {
         TextStyle {
             content: Arc::from(""),
-            color: Color::BLACK,
+            color: Property::base(Color::BLACK),
             font_size: 16.0,
             font_family: Arc::from("Segoe UI"),
             font_weight: FontWeight::NORMAL,
@@ -46,10 +47,12 @@ pub trait TextStyleBuilder: HasDeferredBindings + Sized {
         self
     }
 
-    fn color(mut self, value: impl Into<MaybeSignal<Color>>) -> Self {
+    fn color(mut self, color: impl IntoStyleProp<Color>) -> Self {
+        let color = color.into_style_prop();
+
         self.bind(
             |style| &mut Self::text_style(style).color,
-            value,
+            color,
             DirtyFlags::PAINT,
             |data, _, val| {
                 if let Ok(text) = data.kind.as_text_mut() {
@@ -74,10 +77,10 @@ pub trait TextStyleBuilder: HasDeferredBindings + Sized {
         self
     }
 
-    fn font_size(mut self, value: impl Into<MaybeSignal<f32>>) -> Self {
+    fn font_size(mut self, size: impl Into<MaybeSignal<f32>>) -> Self {
         self.bind(
             |style| &mut Self::text_style(style).font_size,
-            value,
+            size,
             DirtyFlags::PAINT | DirtyFlags::LAYOUT,
             |data, _, val| {
                 if let Ok(text) = data.kind.as_text_mut() {
@@ -88,10 +91,10 @@ pub trait TextStyleBuilder: HasDeferredBindings + Sized {
         self
     }
 
-    fn font_weight(mut self, value: impl Into<MaybeSignal<FontWeight>>) -> Self {
+    fn font_weight(mut self, weight: impl Into<MaybeSignal<FontWeight>>) -> Self {
         self.bind(
             |style| &mut Self::text_style(style).font_weight,
-            value,
+            weight,
             DirtyFlags::PAINT | DirtyFlags::LAYOUT,
             |data, _, val| {
                 if let Ok(text) = data.kind.as_text_mut() {
