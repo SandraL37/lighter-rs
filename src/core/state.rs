@@ -1,7 +1,8 @@
 use crate::{
     core::{
+        animation::{ Duration, Easing, TransitionDir, TransitionSpec },
         interaction::InteractionState,
-        reactive::signal::{MaybeSignal, Signal},
+        reactive::signal::{ MaybeSignal, Signal },
         style::Color,
     },
     elements::text::style::FontWeight,
@@ -29,11 +30,15 @@ impl<T> From<T> for PropertyValue<T> {
 #[derive(Clone, Debug)]
 pub struct StateValue<T> {
     pub value: PropertyValue<T>,
+    pub transition: TransitionSpec,
 }
 
 impl<T> StateValue<T> {
     pub fn instant(v: impl Into<PropertyValue<T>>) -> Self {
-        StateValue { value: v.into() }
+        StateValue {
+            value: v.into(),
+            transition: TransitionSpec::default(),
+        }
     }
 }
 
@@ -73,16 +78,23 @@ impl<T> Property<T> {
         let slot = match computed_state {
             ComputedState::Base => None,
             ComputedState::Hover => self.hover.as_ref(),
-            ComputedState::Active => self.active.as_ref(),
+            // If active is not defined, keep hover styling while pressed.
+            ComputedState::Active => self.active.as_ref().or(self.hover.as_ref()),
         };
         slot.map(|sv| &sv.value).unwrap_or(&self.base)
     }
 
     fn set_state(&mut self, state: ComputedState, sv: StateValue<T>) {
         match state {
-            ComputedState::Base => self.base = sv.value,
-            ComputedState::Hover => self.hover = Some(sv),
-            ComputedState::Active => self.active = Some(sv),
+            ComputedState::Base => {
+                self.base = sv.value;
+            }
+            ComputedState::Hover => {
+                self.hover = Some(sv);
+            }
+            ComputedState::Active => {
+                self.active = Some(sv);
+            }
         }
     }
 }
@@ -116,6 +128,21 @@ impl<T> StateBuilder<T> {
     pub fn active(self, v: impl Into<PropertyValue<T>>) -> StateBuilder<T> {
         let prop = self.finalize();
         prop.active(v)
+    }
+
+    #[inline(always)]
+    pub fn transition(self, duration: Duration, easing: Easing) -> Self {
+        self.enter(duration, easing).exit(duration, easing)
+    }
+
+    pub fn enter(mut self, duration: Duration, easing: Easing) -> Self {
+        self.sv.transition.enter = Some(TransitionDir { duration, easing });
+        self
+    }
+
+    pub fn exit(mut self, duration: Duration, easing: Easing) -> Self {
+        self.sv.transition.exit = Some(TransitionDir { duration, easing });
+        self
     }
 
     fn finalize(mut self) -> Property<T> {

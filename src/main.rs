@@ -3,19 +3,20 @@
 // A prelude::* is needed lol.
 use lighter::{
     core::{
+        animation::Interpolate,
         app::{window::*, *},
-        event::*,
+        event::MouseEvents,
         layout::{
             types::{dimension::*, size::*},
             *,
         },
         reactive::signal::*,
-        state::*,
+        state::StateExt,
         style::*,
     },
     elements::{
-        div::{style::*, *},
-        text::{style::*, *},
+        div::{style::DivStyleBuilder, *},
+        text::{style::TextStyleBuilder, *},
         *,
     },
 };
@@ -28,9 +29,12 @@ fn root() -> impl Element {
     let square = div()
         .items_center()
         .justify_center()
-        .bg(Color::RED.hover(Color::GREEN))
-        .rounded(4.0.hover(8.0).active(16.0))
+        .bg(Color::interpolate(Color::GREEN, Color::RED, 0.0)
+            .hover(Color::interpolate(Color::GREEN, Color::RED, 0.5))
+            .active(Color::interpolate(Color::GREEN, Color::RED, 1.0)))
+        .rounded((4.0).hover(8.0).active(16.0))
         .min_size(px(100.0));
+
     let counter = signal(0.0f32);
 
     page()

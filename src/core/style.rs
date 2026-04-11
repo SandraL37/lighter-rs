@@ -38,6 +38,30 @@ impl Color {
     }
 }
 
+impl std::ops::Add for Color {
+    type Output = Self;
+    fn add(self, rhs: Self) -> Self::Output {
+        Self {
+            r: self.r + rhs.r,
+            g: self.g + rhs.g,
+            b: self.b + rhs.b,
+            a: self.a + rhs.a,
+        }
+    }
+}
+
+impl std::ops::Sub for Color {
+    type Output = Self;
+    fn sub(self, rhs: Self) -> Self::Output {
+        Self {
+            r: self.r - rhs.r,
+            g: self.g - rhs.g,
+            b: self.b - rhs.b,
+            a: self.a - rhs.a,
+        }
+    }
+}
+
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct Transform {
     pub matrix: [f32; 6],
