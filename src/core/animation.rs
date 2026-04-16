@@ -50,7 +50,11 @@ fn ease_out(t: f32) -> f32 {
 
 #[inline]
 fn ease_in_out(t: f32) -> f32 {
-    if t < 0.5 { 2.0 * t * t } else { 1.0 - (-2.0 * t + 2.0).powi(2) / 2.0 }
+    if t < 0.5 {
+        2.0 * t * t
+    } else {
+        1.0 - (-2.0 * t + 2.0).powi(2) / 2.0
+    }
 }
 
 impl Easing {
@@ -79,22 +83,22 @@ pub struct TransitionDir {
 }
 
 #[derive(Clone, Copy, Debug)]
-pub struct TransitionRun<T: Interpolate> {
+pub struct Animation<T> {
     pub from: T,
     pub to: T,
-    pub started_at: Instant,
+    pub start: Instant,
     pub spec: TransitionDir,
 }
 
-impl<T: Interpolate> TransitionRun<T> {
+impl<T: Interpolate> Animation<T> {
     pub fn progress(self, now: Instant) -> f32 {
         let duration_ms = self.spec.duration.0.max(1) as f32;
-        let elapsed_ms = now.duration_since(self.started_at).as_secs_f32() * 1000.0;
+        let elapsed_ms = now.duration_since(self.start).as_secs_f32() * 1000.0;
         (elapsed_ms / duration_ms).clamp(0.0, 1.0)
     }
 
     pub fn sample(self, now: Instant) -> T {
-        let t = (self.spec.easing.0)(self.progress(now));
+        let t = self.spec.easing.0(self.progress(now));
         T::interpolate(self.from, self.to, t)
     }
 
@@ -121,12 +125,11 @@ impl Interpolate for Color {
         let t = t.clamp(0.0, 1.0);
 
         let delta = to - from;
-        from +
-            Self {
-                r: delta.r * t,
-                g: delta.g * t,
-                b: delta.b * t,
-                a: delta.a * t,
-            }
+        from + Self {
+            r: delta.r * t,
+            g: delta.g * t,
+            b: delta.b * t,
+            a: delta.a * t,
+        }
     }
 }

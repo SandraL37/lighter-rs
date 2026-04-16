@@ -460,3 +460,4 @@ fn app(
 ```
 
 BUG WHEN CLICKING IF THE HOVER EXIST AND THE ACTIVE NOT HOVER SHOULD PASS BUT THIS DOESN'T HAPPEN
+property along with the state should hold the runtime value

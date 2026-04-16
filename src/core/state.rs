@@ -1,19 +1,20 @@
 use crate::{
     core::{
-        animation::{ Duration, Easing, TransitionDir, TransitionSpec },
+        animation::{Duration, Easing, Interpolate, TransitionDir, TransitionSpec},
         interaction::InteractionState,
-        reactive::signal::{ MaybeSignal, Signal },
+        reactive::signal::{MaybeSignal, Signal},
         style::Color,
     },
     elements::text::style::FontWeight,
 };
 
+// TODO: TO REMOVE
 #[derive(Clone, Copy, Debug)]
 pub enum PropertyValue<T> {
     Static(T),
 }
 
-impl<T> PropertyValue<T> {
+impl<T: Interpolate> PropertyValue<T> {
     pub fn get(self) -> T {
         match self {
             PropertyValue::Static(v) => v,
@@ -42,6 +43,7 @@ impl<T> StateValue<T> {
     }
 }
 
+// TODO: add a runtime to that
 #[derive(Debug, Clone)]
 pub struct Property<T> {
     pub base: PropertyValue<T>,
@@ -78,7 +80,6 @@ impl<T> Property<T> {
         let slot = match computed_state {
             ComputedState::Base => None,
             ComputedState::Hover => self.hover.as_ref(),
-            // If active is not defined, keep hover styling while pressed.
             ComputedState::Active => self.active.as_ref().or(self.hover.as_ref()),
         };
         slot.map(|sv| &sv.value).unwrap_or(&self.base)

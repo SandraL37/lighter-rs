@@ -33,8 +33,26 @@ impl Color {
         Color { r, g, b, a: 1.0 }
     }
 
-    pub const fn with_alpha(self, a: f32) -> Self {
+    pub const fn alpha(self, a: f32) -> Self {
         Color { a, ..self }
+    }
+
+    pub const fn lighten(self, factor: f32) -> Self {
+        Self {
+            r: self.r + factor,
+            g: self.g + factor,
+            b: self.b + factor,
+            a: self.a,
+        }
+    }
+
+    pub const fn darken(self, factor: f32) -> Self {
+        Self {
+            r: self.r - factor,
+            g: self.g - factor,
+            b: self.b - factor,
+            a: self.a,
+        }
     }
 }
 
